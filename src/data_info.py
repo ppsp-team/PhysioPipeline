@@ -9,24 +9,28 @@ import os
 import pickle
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 
 # Sensor Data Information Class
 # ────────────────────────────────────────────────
 class SensorDataInfo:
-    def __init__(self, sampling_rate=0, duration=None, nb_channels=0, nb_samples=0, file_path=None, description=""):
-        self.sampling_rate = sampling_rate
+    def __init__(self, sampling_rate: float = 0, duration: datetime = None, nb_channels: int = 0, nb_samples: int = 0, file_path: Path = None):
+        if duration is None:
+            duration = datetime.now()
         self.duration = duration
         self.nb_channels = nb_channels
         self.nb_samples = nb_samples
         self.file_path = file_path
-        self.description = description
 
-    def set_duration(self, duration):
+    def set_duration(self, duration: datetime):
         self.duration = duration
 
-    def get_duration(self):
+    def get_duration(self) -> datetime:
         return self.duration
-    
+
+    def set_sampling_rate(self, sampling_rate: float):
+        self.sampling_rate = sampling_rate
+
     def get_sampling_rate(self) -> float:
         return self.sampling_rate
 
@@ -64,7 +68,7 @@ class SensorDataInfo:
     def to_dataframe(self) -> pd.DataFrame:
         return pd.DataFrame([self.to_dict()])
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (f"{self.__class__.__name__}("
                 f"sampling_rate={self.sampling_rate}, "
                 f"duration={self.duration}, "
@@ -73,15 +77,12 @@ class SensorDataInfo:
                 f"file_path={self.file_path}, "
                 f"description='{self.description}')")
 
-
-
 # Metadata Class
 # ────────────────────────────────────────────────
 
 class Metadata:
-    def __init__(self, date=None, misc=""):
-        self.date = date
-        self.misc = misc
+	date : datetime = None
+	misc: str = ""
 
     def __init__(self, date: datetime = None, misc: str = ""):
         if date is None:
@@ -124,14 +125,12 @@ class Metadata:
         """
 
 
-
 # Individual Data Info Classes
 # ────────────────────────────────────────────────
 
-class PPGDataInfo(SensorDataInfo):
-    def __init__(self, sampling_rate=0, duration=None, nb_channels=0, nb_samples=0, file_path=None, description=""):
-        super().__init__(sampling_rate, duration, nb_channels, nb_samples, file_path, description)
-    def get_detailed_description(self) -> str:
+class PPGDataInfo:
+    def __init__(SensorDataInfo):
+    def description(self) -> str:
 	    return f"""
         PPGDataInfo class represents the metadata for PPG (Photoplethysmography) data.
         Date: {self.date.isoformat() if self.date else None}
@@ -141,11 +140,12 @@ class PPGDataInfo(SensorDataInfo):
         Number of Samples: {self.nb_samples if self.nb_samples else 0}
         File Path: {self.file_path if self.file_path else "No file path provided"}
         Description: {self.description if self.description else "No description provided"}
-        """ 
-class ECGDataInfo(SensorDataInfo):
-    def __init__(self, sampling_rate=0, duration=None, nb_channels=0, nb_samples=0, file_path=None, description=""):
-        super().__init__(sampling_rate, duration, nb_channels, nb_samples, file_path, description)
-    def get_detailed_description(self) -> str:
+        """
+
+class ECGDataInfo:
+    def __init__(SensorDataInfo):
+        pass
+    def description(self) -> str:
 	    return f"""
         ECGDataInfo class represents the metadata for ECG (Electrocardiography) data.
         Date: {self.date.isoformat() if self.date else None}
@@ -156,11 +156,11 @@ class ECGDataInfo(SensorDataInfo):
         File Path: {self.file_path if self.file_path else "No file path provided"}
         Description: {self.description if self.description else "No description provided"}
         """
-    
-class EDADataInfo(SensorDataInfo):
-    def __init__(self, sampling_rate=0, duration=None, nb_channels=0, nb_samples=0, file_path=None, description=""):
-        super().__init__(sampling_rate, duration, nb_channels, nb_samples, file_path, description)
-    def get_detailed_description(self) -> str:
+
+class EDADataInfo:
+    def __init__(SensorDataInfo):
+        pass
+    def description(self) -> str:
 	    return f"""
         EDADataInfo class represents the metadata for EDA (Electrodermal Activity) data.
         Date: {self.date.isoformat() if self.date else None}
@@ -171,10 +171,13 @@ class EDADataInfo(SensorDataInfo):
         File Path: {self.file_path if self.file_path else "No file path provided"}
         Description: {self.description if self.description else "No description provided"}
         """
+
 class TranscriptDataInfo:
-    def __init__(self, language='en', format='text', file_path=None):
+    def __init__(self, language: str = 'fr', roles: [str]= [], file_path: Path = None):
+        if language not in ['fr', 'en']:
+            raise ValueError("Language must be either 'fr' or 'en'.")
         self.language = language
-        self.format = format
+        self.roles = roles if roles else []
         self.file_path = file_path
 
     def __str__(self) -> str:
@@ -189,7 +192,7 @@ class TranscriptDataInfo:
         return (f"TranscriptDataInfo(language={self.language}, "
                 f"roles=[{roles_str}], "
                 f"file_path={file_path_str})")
-	
+
     def to_dict(self) -> dict:
         return {
             "language": self.language,
@@ -235,18 +238,17 @@ class TranscriptDataInfo:
         Roles: [{roles_str}]
         File path: {self.file_path}
         """
-    
 
 # Combined Data Info Handler
 #────────────────────────────────────────────────
 
 class DataInfo:
-    def __init__(self, hasPPG=False, hasECG=False, hasEDA=False, hasTranscript=False):
-        self.hasPPG = False
-        self.hasECG = False
-        self.hasEDA = False
-        self.hasTranscript = False
-    
+    def __init__(self):
+        self.hasPPG = false
+        self.hasECG = false
+        self.hasEDA = false
+        self.hasTranscript = false
+
         self.ppgDataInfo = PPGDataInfo()
         self.ecgDataInfo = ECGDataInfo()
         self.edaDataInfo = EDADataInfo()
@@ -321,7 +323,6 @@ class DataInfo:
         Transcript Data Info: {self.transcriptDataInfo.description()}
         """
     
-
 # Data Classes
 # ────────────────────────────────────────────────  
 class PPGData :
