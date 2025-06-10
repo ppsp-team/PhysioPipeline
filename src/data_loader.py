@@ -1,14 +1,25 @@
 # DataLoader
+# This module provides classes for loading and processing various types of data, including Excel files, pickled files, and custom data structures.
+# It includes classes for handling PPG, EDA, ECG, and Temperature data, along with utility functions for validation and transformation.
 
+# Modules
 import os
 import numpy as np
 import pandas as pd
+import pickle
 from datetime import datetime
 from torch.utils.data import Dataset
 
-
-
-class ExcelDataLoader:
+class ExcelDataLoader(Dataset):
+    """
+    A DataLoader that loads data from a directory containing Excel files.
+    This class can be used to load data samples from specified Excel files in the directory.
+    Args:
+        data_dir (str): Directory containing the Excel files.
+        data_files (list): List of Excel file names to load. If None, all .xlsx files in the directory are loaded.
+        load_transform (callable): A function to apply to each loaded sample before adding it to the dataset.
+        transform (callable): A function to apply to each sample when retrieving it from the dataset.
+    """ 
     def __init__(self, data_dir, data_files=None, load_transform=None, transform=None):
         self.data_dir = data_dir
         self.data_files = data_files if data_files else []
@@ -16,7 +27,7 @@ class ExcelDataLoader:
         self.transform = transform
         self.data = self._load_data()
 
-    def _load_data(self):
+    def _load_excel_data(self):
         """
         Loads data from the specified directory from Excel files and applies the load_transform if provided.
 
@@ -74,13 +85,6 @@ class ExcelDataLoader:
         
 
     def validate(self, verbose=True):
-        """
-        Validates the loaded data by checking if the specified files exist and are valid Excel files.
-        Also checks if the data is loaded correctly and if each sample is a valid DataFrame.
-        
-        Args:
-            verbose (bool): If True, prints detailed validation messages
-        """
         # Check if files exist and are valid Excel files
         check = True
         for file_name in self.data_files:
@@ -122,8 +126,6 @@ class ExcelDataLoader:
             print("All samples are valid DataFrames.")
         
         return True
-
-
 
 class UnknownDataLoader(Dataset):
     """
@@ -179,6 +181,10 @@ class PPGdatainfo():
     
 
 class PPGdata():
+    """
+    A class to hold PPG data, including sampling rate, data, NaN value, and methods for validation and loading.
+    This class is used to encapsulate the PPG data for processing and analysis.
+    """
     def __init__(self, ppg_info: PPGdatainfo = None):
         self.sampling_rate = None
         self.data = None
@@ -263,6 +269,9 @@ class PPGdata():
         return data_container
     
 class EDAdatainfo():
+    """ A class to hold information about EDA data, including sampling rate, data, NaN value, and verbosity.
+    This class is used to encapsulate the metadata and data for EDA data processing.
+    """
     def __init__(self, sampling_rate, data, nan_value, verbose=False):
         self.sampling_rate = sampling_rate
         self.data = data
@@ -283,6 +292,9 @@ class EDAdatainfo():
     
 
 class EDAdata:
+    """ A class to hold EDA data, including sampling rate, data, NaN value, and methods for validation and loading.
+    This class is used to encapsulate the EDA data for processing and analysis.
+    """
     def __init__(self, eda_info=None):
         self.sampling_rate = None
         self.data = None
@@ -371,7 +383,11 @@ class EDAdata:
         return data_container
     
 
-class ECGdatainfo(ExcelDataLoader):
+class ECGdatainfo():
+    """
+    A class to hold information about ECG data, including sampling rate, data, NaN value, and verbosity.
+    This class is used to encapsulate the metadata and data for ECG data processing.
+    """
     def __init__(self, sampling_rate, data, nan_value, verbose=False):
         self.sampling_rate = sampling_rate
         self.data = data
@@ -390,7 +406,11 @@ class ECGdatainfo(ExcelDataLoader):
     def get_verbose(self):
         return self.verbose
 
-class ECGdata(ExcelDataLoader):
+class ECGdata():
+    """
+    A class to hold ECG data, including sampling rate, data, NaN value, and methods for validation and loading.
+    This class is used to encapsulate the ECG data for processing and analysis.
+    """
     def __init__(self, ecg_info=None):
         self.sampling_rate = None
         self.data = None
@@ -479,9 +499,11 @@ class ECGdata(ExcelDataLoader):
         return data_container
 
 
-
-
-class Temperaturedatainfo(ExcelDataLoader):
+class Temperaturedatainfo():
+    """
+    A class to hold information about Temperature data, including sampling rate, data, NaN value, and verbosity.
+    This class is used to encapsulate the metadata and data for Temperature data processing.
+    """
     def __init__(self, sampling_rate, data, nan_value, verbose=False):
         self.sampling_rate = sampling_rate
         self.data = data
@@ -500,7 +522,13 @@ class Temperaturedatainfo(ExcelDataLoader):
     def get_verbose(self):
         return self.verbose
 
-class Temperaturedata(ExcelDataLoader):
+class Temperaturedata():
+    """
+    A class to hold Temperature data, including sampling rate, data, NaN value, and methods for validation and loading.
+    This class is used to encapsulate the Temperature data for processing and analysis.
+    Args:
+        temperature_info (Temperaturedatainfo): An instance of Temperaturedatainfo containing the metadata and data.
+    """
     def __init__(self, temperature_info=None):
         self.sampling_rate = None
         self.data = None
@@ -610,7 +638,7 @@ class pickledDataLoader(ExcelDataLoader):
             pickle.dump(data, f)
         print(f"Data saved to {file_path}")
 
-    def _load_data(self):
+    def _load_pickle_data(self):
         """
         Loads data from the specified directory from pickled files and applies the load_transform if provided.
 
@@ -628,8 +656,10 @@ class pickledDataLoader(ExcelDataLoader):
                     sample = self.load_transform(sample)
                 data.append(sample)
         return data
+    
     def __str__(self):
         return f"PickledDataLoader with {len(self.data)} samples from {self.data_dir}"
+    
     def verbose(self):
         if not os.path.exists(self.data_dir):
             print(f"Data directory {self.data_dir} does not exist.")
@@ -647,6 +677,7 @@ class pickledDataLoader(ExcelDataLoader):
             return
         print(f"PickledDataLoader with {len(self.data)} samples from {self.data_dir}")
         print(f"Data files: {self.data_files}")
+
     def validate(self, verbose=True):
         """
         Validates the loaded data by checking if the specified files exist and are valid pickled files.
