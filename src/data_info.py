@@ -14,19 +14,29 @@ from pathlib import Path
 # Sensor Data Information Class
 # ────────────────────────────────────────────────
 class SensorDataInfo:
-    def __init__(self, sampling_rate: float = 0, duration: datetime = None, nb_channels: int = 0, nb_samples: int = 0, file_path: Path = None):
-        if duration is None:
-            duration = datetime.now()
-        self.duration = duration
-        self.nb_channels = nb_channels
-        self.nb_samples = nb_samples
-        self.file_path = file_path
+    def __init__(self):
+        self.nb_channels: int = 0
+        self.sampling_rate: float = 0.0
 
-    def set_duration(self, duration: datetime):
-        self.duration = duration
+        self.file_path: Path = None
+        
+        self.rs_nb_samples: int = 0
+        self.rs_duration: int = 0
 
-    def get_duration(self) -> datetime:
-        return self.duration
+        self.session_nb_samples: int = 0
+        self.session_duration: int = 0
+
+    def set_rs_duration(self, duration: datetime):
+        self.rs_duration = duration
+
+    def set_session_duration(self, duration: datetime):
+        self.session_duration = duration
+
+    def get_rs_duration(self) -> datetime:
+        return self.rs_duration
+
+    def get_session_duration(self) -> datetime:
+        return self.session_duration
 
     def set_sampling_rate(self, sampling_rate: float):
         self.sampling_rate = sampling_rate
@@ -40,11 +50,17 @@ class SensorDataInfo:
     def get_nb_channels(self) -> int:
         return self.nb_channels
 
-    def set_nb_samples(self, nb_samples: int):
-        self.nb_samples = nb_samples
+    def set_rs_nb_samples(self, nb_samples: int):
+        self.rs_nb_samples = nb_samples
 
-    def get_nb_samples(self) -> int:
-        return self.nb_samples
+    def set_session_nb_samples(self, nb_samples: int):
+        self.session_nb_samples = nb_samples
+
+    def get_rs_nb_samples(self) -> int:
+        return self.rs_nb_samples
+
+    def get_session_nb_samples(self) -> int:
+        return self.session_nb_samples
 
     def set_file_path(self, file_path: Path):
         self.file_path = file_path
@@ -54,12 +70,13 @@ class SensorDataInfo:
 
     def to_dict(self) -> dict:
         return {
-            "sampling_rate": self.sampling_rate,
-            "duration": self.duration,
             "nb_channels": self.nb_channels,
-            "nb_samples": self.nb_samples,
-            "file_path": self.file_path,
-            "description": self.description
+            "sampling_rate": self.sampling_rate,
+            "file_path": str(self.file_path) if self.file_path else None,
+            "rs_nb_samples": self.rs_nb_samples,
+            "rs_duration": self.rs_duration,
+            "session_nb_samples": self.session_nb_samples,
+            "session_duration": self.session_duration
         }
 
     def to_json(self) -> str:
@@ -70,12 +87,13 @@ class SensorDataInfo:
 
     def __str__(self) -> str:
         return (f"{self.__class__.__name__}("
-                f"sampling_rate={self.sampling_rate}, "
-                f"duration={self.duration}, "
                 f"nb_channels={self.nb_channels}, "
-                f"nb_samples={self.nb_samples}, "
+                f"sampling_rate={self.sampling_rate}, "
                 f"file_path={self.file_path}, "
-                f"description='{self.description}')")
+                f"rs_nb_samples={self.rs_nb_samples}, "
+                f"rs_duration={self.rs_duration}, "
+                f"session_nb_samples={self.session_nb_samples}, "
+                f"session_duration={self.session_duration})")
 
 # Metadata Class
 # ────────────────────────────────────────────────
@@ -129,60 +147,37 @@ class Metadata:
 # ────────────────────────────────────────────────
 
 class PPGDataInfo:
-    def __init__(self, sampling_rate: float = 0, duration: datetime = None, 
-                 nb_channels: int = 0, nb_samples: int = 0, 
-                 file_path: Path = None, date=None, description: str = ""):
+    def __init__(self):
         
-        super().__init__(sampling_rate, duration, nb_channels, nb_samples, file_path)
+        super().__init__()
 
     def description(self) -> str:
 	    return f"""
         PPGDataInfo class represents the metadata for PPG (Photoplethysmography) data.
-        Date: {self.date.isoformat() if self.date else None}
-        Sampling Rate: {self.sampling_rate if self.sampling_rate else 0.0}
-        Duration: {self.duration.isoformat() if self.duration else None}
-        Number of Channels: {self.nb_channels if self.nb_channels else 0}
-        Number of Samples: {self.nb_samples if self.nb_samples else 0}
-        File Path: {self.file_path if self.file_path else "No file path provided"}
-        Description: {self.description if self.description else "No description provided"}
+        {super().description()}
         """
 
 class ECGDataInfo:
-    def __init__(self, sampling_rate: float = 0, duration: datetime = None, 
-                 nb_channels: int = 0, nb_samples: int = 0, 
-                 file_path: Path = None, date=None, description: str = ""):
+    def __init__(self):
         
-        super().__init__(sampling_rate, duration, nb_channels, nb_samples, file_path)
+        super().__init__()
 
     def description(self) -> str:
 	    return f"""
-        ECGDataInfo class represents the metadata for ECG (Electrocardiography) data.
-        Date: {self.date.isoformat() if self.date else None}
-        Sampling Rate: {self.sampling_rate if self.sampling_rate else 0.0}
-        Duration: {self.duration.isoformat() if self.duration else None}
-        Number of Channels: {self.nb_channels if self.nb_channels else 0}
-        Number of Samples: {self.nb_samples if self.nb_samples else 0}
-        File Path: {self.file_path if self.file_path else "No file path provided"}
-        Description: {self.description if self.description else "No description provided"}
+        ECGDataInfo class represents the metadata for PPG (Photoplethysmography) data.
+        {super().description()}
         """
 
+
 class EDADataInfo:
-    def __init__(self, sampling_rate: float = 0, duration: datetime = None, 
-                 nb_channels: int = 0, nb_samples: int = 0, 
-                 file_path: Path = None, date=None, description: str = ""):
+    def __init__(self):
         
-        super().__init__(sampling_rate, duration, nb_channels, nb_samples, file_path)
+        super().__init__()
         
     def description(self) -> str:
 	    return f"""
         EDADataInfo class represents the metadata for EDA (Electrodermal Activity) data.
-        Date: {self.date.isoformat() if self.date else None}
-        Sampling Rate: {self.sampling_rate if self.sampling_rate else 0.0}
-        Duration: {self.duration.isoformat() if self.duration else None}
-        Number of Channels: {self.nb_channels if self.nb_channels else 0}
-        Number of Samples: {self.nb_samples if self.nb_samples else 0}
-        File Path: {self.file_path if self.file_path else "No file path provided"}
-        Description: {self.description if self.description else "No description provided"}
+        {super().description()}
         """
 
 class TranscriptDataInfo:
@@ -336,73 +331,11 @@ class DataInfo:
         Transcript Data Info: {self.transcriptDataInfo.description()}
         """
     
-# Data Classes
-# ────────────────────────────────────────────────  
-class PPGData :
-    def __init__(self):
-        self.data = None
-
-
-class ECGData :
-    def __init__(self):
-        self.data = None
-
-class EDAData :
-    def __init__(self):
-        self.data = None
 
 class TranscriptData :
     def __init__(self):
         self.data = None
 
-	
-# Data Loader
-# ────────────────────────────────────────────────
-
-class Dataloader:
-    def __init__(self): 
-        self.info = DataInfo()
-        self.ppgData = None
-        self.ecgData = None
-        self.edaData = None
-        self.transcriptData = None
-
-    def load_from_excel(self, file_path):
-        df = pd.read_excel('example.xlsx')
-        print(df)
-        print("Data loaded from Excel file.")
-
-    def load_from_json(self, file_path):
-        df = pd.read_json(file_path)
-        print(df)
-        print("Data loaded from JSON file.")
-
-    def load(self, file_type=None, file_path=None):
-        if file_type == "excel":
-            self.load_from_excel(file_path)
-        elif file_type == "json":
-            self.load_from_json(file_path)
-        else:
-            raise ValueError("Unsupported file type. Use 'excel' or 'json'.")
-
-    def load_data_from_file(self, file_path):
-        if file_path.endswith('.xlsx'):
-            self.load_from_excel(file_path)
-        elif file_path.endswith('.json'):
-            self.load_from_json(file_path)
-        else:
-            raise ValueError("Unsupported file format. Please use .xlsx or .json files.")
-
-
-    def save_data_to_file(self, file_path):
-        if file_path.endswith('.xlsx'):
-            self.info.to_excel(file_path)
-            print(f"Data saved to {file_path}")
-        elif file_path.endswith('.json'):
-            self.info.to_json(file_path)
-            print(f"Data saved to {file_path}")
-        else:
-            raise ValueError("Unsupported file format. Please use .xlsx or .json files.")
 
 # Example usage
 

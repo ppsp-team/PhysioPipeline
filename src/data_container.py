@@ -29,10 +29,18 @@ class PPGDataContainer(DataContainer):
     def __init__(self):
         super().__init__()
 
+<<<<<<< HEAD
 class ECGDataContainer(DataContainer):
     def __init__(self):
         super().__init__()
 
 class EDADataContainer(DataContainer):
+=======
+class ECGDataContainer(DataContainer): :
+    def __init__(self):
+        super().__init__()
+
+class EDADataContainer(DataContainer): :
+>>>>>>> a352793 (did stuffs)
     def __init__(self):
         super().__init__()
