@@ -1,4 +1,5 @@
 import pandas as pd
+from .data_container import DataContainer
 
 
 class Subject:
