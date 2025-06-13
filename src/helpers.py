@@ -1,7 +1,6 @@
 from pathlib import Path
 
-
-def extract_raw_pathname(coi_structure: list, FAMILY_ID: int, SEANCE_ID: int, ROLE_ID: int) -> Path:
+def extract_raw_pathname_from_coi_structure(coi_structure: list, FAMILY_ID: int, SEANCE_ID: int, ROLE_ID: int) -> Path:
     """
     Extracts the raw sensor and session code from the COI structure based on family and session IDs.
 
@@ -12,8 +11,7 @@ def extract_raw_pathname(coi_structure: list, FAMILY_ID: int, SEANCE_ID: int, RO
         ROLE_ID (int): The role ID to filter the entries.
 
     Returns:
-        
-
+        Path: The path to the raw data file path for the specified family, session, and role.
     Raises:
         ValueError: If no matching entry is found in the COI structure.
     """
