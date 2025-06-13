@@ -1,0 +1,266 @@
+[
+    {
+        "session_code": "fam1_EV_session_1",
+        "family": 1,
+        "session": 1,
+        "sensor": "1710937852_A04DAD",
+        "role": "FATHER",
+        "index": 2 
+    },
+    {
+        "session_code": "fam1_EV_session_1",
+        "family": 1,
+        "session": 1,
+        "sensor": "1710937853_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam1_EV_session_1",
+        "family": 1,
+        "session": 1,
+        "sensor": "1710937879_A00275",
+        "role": "THERAPIST",
+        "index": 0
+    },
+    {
+        "session_code": "fam1_EV_session_2",
+        "family": 1,
+        "session": 2,
+        "sensor": "1715774705_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam1_EV_session_2",
+        "family": 1,
+        "session": 2,
+        "sensor": "1715774709_A04DAD",
+        "role": "FATHER",
+        "index": 2 
+    },
+    {
+        "session_code": "fam1_EV_session_2",
+        "family": 1,
+        "session": 2,
+        "sensor": "1715774718_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam2_JL_session_1",
+        "family": 2,
+        "session": 1,
+        "sensor": "1711550964_A04DAD",
+        "role": "FATHER",
+        "index": 2 
+    },
+    {
+        "session_code": "fam2_JL_session_1",
+        "family": 2,
+        "session": 1,
+        "sensor": "1711550966_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam2_JL_session_1",
+        "family": 2,
+        "session": 1,
+        "sensor": "1711550968_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam2_JL_session_2",
+        "family": 2,
+        "session": 2,
+        "sensor": "1712760294_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam2_JL_session_2",
+        "family": 2,
+        "session": 2,
+        "sensor": "1712760606_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam2_JL_session_2",
+        "family": 2,
+        "session": 2,
+        "sensor": "1712761153_A04DAD",
+        "role": "FATHER",
+        "index": 2 
+    },
+    {
+        "session_code": "fam2_JL_session_3",
+        "family": 2,
+        "session": 3,
+        "sensor": "1713970747_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam2_JL_session_3",
+        "family": 2,
+        "session": 3,
+        "sensor": "1713970756_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam2_JL_session_3",
+        "family": 2,
+        "session": 3,
+        "sensor": "1713970757_A04DAD",
+        "role": "FATHER",
+        "index": 2 
+    },
+    {
+        "session_code": "fam3_OP_session_1",
+        "family": 3,
+        "session": 1,
+        "sensor": "1712666669_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam3_OP_session_1",
+        "family": 3,
+        "session": 1,
+        "sensor": "1712666698_A04DAD",
+        "role": "FATHER",
+        "index": 2 
+    },
+    {
+        "session_code": "fam3_OP_session_1",
+        "family": 3,
+        "session": 1,
+        "sensor": "1712666699_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam4_FB_session_1",
+        "family": 4,
+        "session": 1,
+        "sensor": "1713204884_A04D21",
+        "role": "CHILD1",
+        "index": 2 
+    },
+    {
+        "session_code": "fam4_FB_session_1",
+        "family": 4,
+        "session": 1,
+        "sensor": "1713204885_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam4_FB_session_1",
+        "family": 4,
+        "session": 1,
+        "sensor": "1713204887_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam4_FB_session_2",
+        "family": 4,
+        "session": 2,
+        "sensor": "1714410770_A04D21",
+        "role": "CHILD1",
+        "index": 2 
+    },
+    {
+        "session_code": "fam4_FB_session_2",
+        "family": 4,
+        "session": 2,
+        "sensor": "1714410779_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam4_FB_session_2",
+        "family": 4,
+        "session": 2,
+        "sensor": "1714410789_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam4_FB_session_3",
+        "family": 4,
+        "session": 3,
+        "sensor": "1715612839_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam4_FB_session_3",
+        "family": 4,
+        "session": 3,
+        "sensor": "1715612844_A04D21",
+        "role": "CHILD1",
+        "index": 2 
+    },
+    {
+        "session_code": "fam4_FB_session_3",
+        "family": 4,
+        "session": 3,
+        "sensor": "1715612876_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam5_JP_session_1",
+        "family": 5,
+        "session": 1,
+        "sensor": "1713471803_A04DAD",
+        "role": "FATHER",
+        "index": 2 
+    },
+    {
+        "session_code": "fam5_JP_session_1",
+        "family": 5,
+        "session": 1,
+        "sensor": "1713471804_A04ADA",
+        "role": "MOTHER",
+        "index": 1 
+    },
+    {
+        "session_code": "fam5_JP_session_1",
+        "family": 5,
+        "session": 1,
+        "sensor": "1713471804_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam6_GS_session_1",
+        "family": 6,
+        "session": 1,
+        "sensor": "1715113212_A04ADA",
+        "role": "DAD",
+        "index": 1 
+    },
+    {
+        "session_code": "fam6_GS_session_1",
+        "family": 6,
+        "session": 1,
+        "sensor": "1715113213_A00275",
+        "role": "THERAPIST",
+        "index": 0 
+    },
+    {
+        "session_code": "fam6_GS_session_1",
+        "family": 6,
+        "session": 1,
+        "sensor": "1715113378_A04DAD",
+        "role": "DAD",
+        "index": 2 
+    }
+]
