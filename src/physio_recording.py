@@ -12,9 +12,9 @@ import neurokit2 as nk
 class PhysioRecording:
     """A recording of a single recording."""
 
-    eda: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'features', 'epochs'])
-    bvp: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'features', 'epochs'])
-    temperature: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'features', 'epochs'])
+    eda: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs', 'features'])
+    bvp: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs', 'features'])
+    temperature: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs', 'features'])
 
     subject_id: int = None
     session_id: int = None
@@ -34,20 +34,21 @@ class PhysioRecording:
         self.eda = {
             'raw': {},
             'processed': {},
-            'features': {},
-            'epochs': {}
+            'epochs': {},
+            'features': {}
+
         }
         self.bvp = {
             'raw': {},
             'processed': {},
-            'features': {},
-            'epochs': {}
+            'epochs': {},
+            'features': {}
         }
         self.temperature = {
             'raw': {},
             'processed': {},
-            'features': {},
-            'epochs': {}
+            'epochs': {},
+            'features': {}
         }
         self.verbose = verbose
 
@@ -231,6 +232,9 @@ class PhysioRecording:
         self.bvp["processed"]["session"] = bvp_processed_session.to_dict()
         self.bvp["processed"]["rs"]["sampling_rate"] = sampling_rate
         self.bvp["processed"]["session"]["sampling_rate"] = sampling_rate
+
+        self.compute_rr_intervals_bvp()
+        # TODO: implement HRV metrics computation for BVP data
         
         if self.verbose:
             print(f"\t\tProcessed BVP resting state data with {len(bvp_processed_rs)} samples at {sampling_rate} Hz.")
@@ -245,42 +249,10 @@ class PhysioRecording:
             print("\t\tProcessing Temperature data... not implemented yet ...")
 
 
-    def extract_features(self) -> None:
-        """Extract features from the processed data."""
-        if not self.data_processed:
-            raise ValueError("Data has not been processed. Please process the data before extracting features.")
-
-        if self.verbose:
-            print(f"\tExtracting features for subject {self.subject_id} and session {self.session_id}...")
-
-        self.extract_features_eda()
-        self.extract_features_bvp()
-        self.extract_features_temperature()
-
-        self.features_extracted = True
-
-        if self.verbose:
-            print(f"\tFeatures extracted successfully for subject {self.subject_id} and session {self.session_id}.\n")
-
-    def extract_features_eda(self) -> None:
-        """Extract features from EDA data."""
-        if not self.data_processed:
-            raise ValueError("Data has not been processed. Please process the data before extracting features.")
-
-        if self.verbose:
-            print("\t\tExtracting EDA features... not implemented yet ...")
-
-        #TODO
-
-
-
-    def extract_features_bvp(self) -> None:
+    def compute_rr_intervals_bvp(self) -> None:
         """Extract features from BVP data."""
-        if not self.data_processed:
-            raise ValueError("Data has not been processed. Please process the data before extracting features.")
-
         if self.verbose:
-            print("\t\tExtracting BVP features...")
+            print("\t\tComputing RR intervals from BVP data...")
 
         bvp_processed_rs = self.bvp["processed"]["rs"]
         bvp_processed_session = self.bvp["processed"]["session"]
@@ -305,31 +277,406 @@ class PhysioRecording:
             print(f"\t\tExtracted {len(corrected_rr_rs)} RR intervals from resting state BVP data.")
             print(f"\t\tExtracted {len(corrected_rr_session)} RR intervals from session BVP data.")
 
-        self.bvp["features"]["rs"] = {
-            "RR_Intervals": corrected_rr_rs,
-            "Sampling_Rate": sampling_rate
-        }
+        self.bvp["processed"]["rs"]["RR_Intervals"] = corrected_rr_rs
 
-        self.bvp["features"]["session"] = {
-            "RR_Intervals": corrected_rr_session,
-            "Sampling_Rate": sampling_rate
-        }
+        self.bvp["processed"]["session"]["RR_Intervals"] = corrected_rr_session
 
         if self.verbose:
-            print(f"\t\tExtracted BVP features for resting state with {len(corrected_rr_rs)} RR intervals at {sampling_rate} Hz.")
-            print(f"\t\tExtracted BVP features for session with {len(corrected_rr_session)} RR intervals at {sampling_rate} Hz.")
-
-        # TODO compute HRV metrics
+            print(f"\t\tComputed RR intervals for resting state BVP data with {len(corrected_rr_rs)} intervals.")
+            print(f"\t\tComputed RR intervals for session BVP data with {len(corrected_rr_session)} intervals.")
 
 
-    def extract_features_temperature(self) -> None:
-        """Extract features from Temperature data."""
+    def epoch_time_serie_with_fixed_duration(self, signal_type: str, key: str, duration: int, overlap: int = 0) -> None:
+        """Epoch time series with a fixed duration (in seconds)."""
+        if self.verbose:
+            print(f"\t\tEpoching {signal_type.upper()} time series for '{key}' with duration {duration}s and overlap {overlap}s.")
+
         if not self.data_processed:
-            raise ValueError("Data has not been processed. Please process the data before extracting features.")
+            raise ValueError("Data has not been processed. Please process the data before epoching.")
+
+        if duration <= 0:
+            raise ValueError("Duration must be a positive integer.")
+
+        if signal_type not in ["eda", "bvp", "temperature"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+
+        # Retrieve the signal and sampling rate
+        if signal_type == "eda":
+            serie_rs = self.eda["processed"]["rs"][key]
+            serie_session = self.eda["processed"]["session"][key]
+            sampling_rate = self.eda["processed"]["rs"]["sampling_rate"]
+        elif signal_type == "bvp":
+            serie_rs = self.bvp["processed"]["rs"][key]
+            serie_session = self.bvp["processed"]["session"][key]
+            sampling_rate = self.bvp["processed"]["rs"]["sampling_rate"]
+        elif signal_type == "temperature":
+            serie_rs = self.temperature["processed"]["rs"][key]
+            serie_session = self.temperature["processed"]["session"][key]
+            sampling_rate = self.temperature["processed"]["rs"]["sampling_rate"]
+
+        # Convert the signal to numpy array
+        signal_session = np.asarray(list(serie_session.values())).flatten()
+        timestamps = np.arange(len(signal_session)) / sampling_rate  # Generate timestamps in seconds
+
+        # Epoch the signal
+        epochs = segment_signal_epochs(signal_session, timestamps, epoch_len=duration, epoch_overlap=overlap)
+
+        if signal_type == "eda":
+            self.eda["epochs"]["rs"][key] = [np.asarray(serie_rs)] # Save the original signal
+            self.eda["epochs"]["session"][key] = epochs
+        elif signal_type == "bvp":
+            self.bvp["epochs"]["rs"][key] = [np.asarray(serie_rs)]
+            self.bvp["epochs"]["session"][key] = epochs
+        elif signal_type == "temperature":
+            self.temperature["epochs"]["rs"][key] = [np.asarray(serie_rs)]
+            self.temperature["epochs"]["session"][key] = epochs
+        
+        if self.verbose:
+            print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data.")
+ 
+    def epoch_time_serie_with_fixed_number(self, signal_type: str, key: str, n_epochs: int) -> None:
+        """Epoch time series into a fixed number of equal-length segments."""
+        if self.verbose:
+            print(f"\t\tEpoching {signal_type.upper()} time series for '{key}' into {n_epochs} equal epochs...")
+
+        if not self.data_processed:
+            raise ValueError("Data has not been processed. Please process the data before epoching.")
+
+        if n_epochs <= 1:
+            raise ValueError("Number of epochs must be greater than 1.")
+
+        if signal_type not in ["eda", "bvp", "temperature"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+
+        # Retrieve signal and sampling rate
+        if signal_type == "eda":
+            serie_rs = self.eda["processed"]["rs"][key]
+            serie_session = self.eda["processed"]["session"][key]
+            sampling_rate = self.eda["processed"]["rs"]["sampling_rate"]
+        elif signal_type == "bvp":
+            serie_rs = self.bvp["processed"]["rs"][key]
+            serie_session = self.bvp["processed"]["session"][key]
+            sampling_rate = self.bvp["processed"]["rs"]["sampling_rate"]
+        elif signal_type == "temperature":
+            serie_rs = self.temperature["processed"]["rs"][key]
+            serie_session = self.temperature["processed"]["session"][key]
+            sampling_rate = self.temperature["processed"]["rs"]["sampling_rate"]
+
+        # Convert signal to numpy
+        signal_session = np.asarray(list(serie_session.values())).flatten()
+        timestamps = np.arange(len(signal_session)) / sampling_rate
+
+        # Calculate epoch boundaries
+        total_samples = len(signal_session)
+        samples_per_epoch = total_samples // n_epochs
+        epochs = [
+            signal_session[i * samples_per_epoch: (i + 1) * samples_per_epoch]
+            for i in range(n_epochs)
+        ]
+
+        # Handle trailing samples if not divisible
+        remaining_samples = total_samples % n_epochs
+        if remaining_samples > 0:
+            # Optionally add remaining samples to the last epoch
+            epochs[-1] = np.concatenate([epochs[-1], signal_session[-remaining_samples:]])
+
+        # Store
+        if signal_type == "eda":
+            self.eda["epochs"]["rs"][key] = [np.asarray(serie_rs)]
+            self.eda["epochs"]["session"][key] = epochs
+        elif signal_type == "bvp":
+            self.bvp["epochs"]["rs"][key] = [np.asarray(serie_rs)]
+            self.bvp["epochs"]["session"][key] = epochs
+        elif signal_type == "temperature":
+            self.temperature["epochs"]["rs"][key] = [np.asarray(serie_rs)]
+            self.temperature["epochs"]["session"][key] = epochs
 
         if self.verbose:
-            print("\t\tExtracting temperature features... not implemented yet ...")
+            print(f"\t\tCreated {len(epochs)} epochs of equal length for {signal_type.upper()} '{key}' data.")
+
+
+    def epoch_time_serie_with_sliding_window(self, signal_type: str, key: str, duration: float, step: float) -> None:
+        """Epoch time series using a sliding window of fixed duration and step (both in seconds)."""
+        if self.verbose:
+            print(f"\t\tSliding-window epoching {signal_type.upper()} time series for '{key}' with duration {duration}s and step {step}s...")
+
+        if not self.data_processed:
+            raise ValueError("Data has not been processed. Please process the data before epoching.")
+
+        if duration <= 0 or step <= 0:
+            raise ValueError("Duration and step must be positive.")
+
+        if signal_type not in ["eda", "bvp", "temperature"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+
+        # Retrieve the signal and sampling rate
+        if signal_type == "eda":
+            serie_rs = self.eda["processed"]["rs"][key]
+            serie_session = self.eda["processed"]["session"][key]
+            sampling_rate = self.eda["processed"]["rs"]["sampling_rate"]
+        elif signal_type == "bvp":
+            serie_rs = self.bvp["processed"]["rs"][key]
+            serie_session = self.bvp["processed"]["session"][key]
+            sampling_rate = self.bvp["processed"]["rs"]["sampling_rate"]
+        elif signal_type == "temperature":
+            serie_rs = self.temperature["processed"]["rs"][key]
+            serie_session = self.temperature["processed"]["session"][key]
+            sampling_rate = self.temperature["processed"]["rs"]["sampling_rate"]
+
+        # Convert signal to numpy
+        signal_session = np.asarray(list(serie_session.values())).flatten()
+        total_samples = len(signal_session)
+        window_size = int(duration * sampling_rate)
+        step_size = int(step * sampling_rate)
+
+        epochs = []
+        for start in range(0, total_samples - window_size + 1, step_size):
+            end = start + window_size
+            epochs.append(signal_session[start:end])
+
+        # Store
+        if signal_type == "eda":
+            self.eda["epochs"]["rs"][key] = [np.asarray(serie_rs)]
+            self.eda["epochs"]["session"][key] = epochs
+        elif signal_type == "bvp":
+            self.bvp["epochs"]["rs"][key] = [np.asarray(serie_rs)]
+            self.bvp["epochs"]["session"][key] = epochs
+        elif signal_type == "temperature":
+            self.temperature["epochs"]["rs"][key] = [np.asarray(serie_rs)]
+            self.temperature["epochs"]["session"][key] = epochs
+
+        if self.verbose:
+            print(f"\t\tCreated {len(epochs)} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}'.")
+
+
+    def epoch_intervals_serie_with_fixed_duration(self, signal_type: str, key: str, duration: float, overlap: float = 0.0) -> None:
+        """Epoch interval series (e.g., RR, ISI) with a fixed duration (in seconds)."""
+        if self.verbose:
+            print(f"\t\tEpoching {signal_type.upper()} interval series for '{key}' with fixed duration {duration}s...")
+
+        if not self.data_processed:
+            raise ValueError("Data has not been processed. Please process the data before epoching.")
+
+        if duration <= 0:
+            raise ValueError("Duration must be a positive number.")
+
+        duration_ms = duration * 1000  # convert to milliseconds
+        overlap_ms = overlap * 1000  # convert to milliseconds
+
+        if signal_type not in ["eda", "bvp", "temperature"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+
+        if signal_type == "eda":
+            interval_rs = self.eda["processed"]["rs"][key]
+            interval_session = self.eda["processed"]["session"][key]
+        elif signal_type == "bvp":
+            interval_rs = self.bvp["processed"]["rs"][key]
+            interval_session = self.bvp["processed"]["session"][key]
+        elif signal_type == "temperature":
+            interval_rs = self.temperature["processed"]["rs"][key]
+            interval_session = self.temperature["processed"]["session"][key]
+
+        def segment_fixed(intervals, duration_ms, overlap_ms):
+            segments = []
+            cumsum = np.cumsum(intervals)
+            start = 0
+            while start + duration_ms <= cumsum[-1]:
+                end = start + duration_ms
+                mask = (cumsum >= start) & (cumsum < end)
+                segment = intervals[mask]
+                if len(segment) > 0:
+                    segments.append(segment)
+                start += duration_ms - overlap_ms
+            return segments
+
+        if signal_type == "eda":
+            self.eda["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.eda["epochs"]["session"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
+        elif signal_type == "bvp":
+            self.bvp["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.bvp["epochs"]["session"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
+        elif signal_type == "temperature":
+            self.temperature["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.temperature["epochs"]["session"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
+
+        if self.verbose:
+            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} epochs of {duration}s for {signal_type.upper()} '{key}' data.")
+
+    def epoch_intervals_serie_with_fixed_number(self, signal_type: str, key: str, n_epochs: int) -> None:
+        """Epoch interval series (e.g., RR, ISI) into a fixed number of segments."""
+        if self.verbose:
+            print(f"\t\tEpoching {signal_type.upper()} interval series for '{key}' into {n_epochs} equal parts...")
+
+        if not self.data_processed:
+            raise ValueError("Data has not been processed. Please process the data before epoching.")
+
+        if n_epochs <= 1:
+            raise ValueError("Number of epochs must be greater than 1.")
+
+        if signal_type not in ["eda", "bvp", "temperature"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+
+        if signal_type == "eda":
+            interval_rs = self.eda["processed"]["rs"][key]
+            interval_session = self.eda["processed"]["session"][key]
+        elif signal_type == "bvp":
+            interval_rs = self.bvp["processed"]["rs"][key]
+            interval_session = self.bvp["processed"]["session"][key]
+        elif signal_type == "temperature":
+            interval_rs = self.temperature["processed"]["rs"][key]
+            interval_session = self.temperature["processed"]["session"][key]
+
+        def segment_equal_chunks(intervals, n):
+            length = len(intervals)
+            chunk_size = length // n
+            segments = [intervals[i*chunk_size:(i+1)*chunk_size] for i in range(n - 1)]
+            segments.append(intervals[(n - 1)*chunk_size:])
+            return segments
+
+        if signal_type == "eda":
+            self.eda["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.eda["epochs"]["session"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
+        elif signal_type == "bvp":
+            self.bvp["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.bvp["epochs"]["session"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
+        elif signal_type == "temperature":
+            self.temperature["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.temperature["epochs"]["session"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
+
+        if self.verbose:
+            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} epochs of equal length for {signal_type.upper()} '{key}' data.")
+
+    def epoch_intervals_serie_with_sliding_window(self, signal_type: str, key: str, duration: float, step: float) -> None:
+        """Epoch interval series (e.g., RR, ISI) using sliding window (in seconds)."""
+        if self.verbose:
+            print(f"\t\tSliding-window epoching {signal_type.upper()} interval series for '{key}' with duration {duration}s and step {step}s...")
+
+        if not self.data_processed:
+            raise ValueError("Data has not been processed. Please process the data before epoching.")
+
+        if duration <= 0 or step <= 0:
+            raise ValueError("Duration and step must be positive.")
+
+        duration_ms = duration * 1000
+        step_ms = step * 1000
+
+        if signal_type not in ["eda", "bvp", "temperature"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+
+        if signal_type == "eda":
+            interval_rs = self.eda["processed"]["rs"][key]
+            interval_session = self.eda["processed"]["session"][key]
+        elif signal_type == "bvp":
+            interval_rs = self.bvp["processed"]["rs"][key]
+            interval_session = self.bvp["processed"]["session"][key]
+        elif signal_type == "temperature":
+            interval_rs = self.temperature["processed"]["rs"][key]
+            interval_session = self.temperature["processed"]["session"][key]
         
+        def segment_sliding(intervals, duration_ms, step_ms):
+            segments = []
+            cumsum = np.cumsum(intervals)
+            start = 0
+            while start + duration_ms <= cumsum[-1]:
+                end = start + duration_ms
+                mask = (cumsum >= start) & (cumsum < end)
+                segment = intervals[mask]
+                if len(segment) > 0:
+                    segments.append(segment)
+                start += step_ms
+            return segments
+
+        if signal_type == "eda":
+            self.eda["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.eda["epochs"]["session"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
+        elif signal_type == "bvp":
+            self.bvp["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.bvp["epochs"]["session"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
+        elif signal_type == "temperature":
+            self.temperature["epochs"]["rs"][key] = [np.asarray(interval_rs)]
+            self.temperature["epochs"]["session"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
+        
+        if self.verbose:
+            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}' data.")
+
+    def epoch_metric(self, signal_type: str, key: str, method: str, is_interval: bool = False, **kwargs: Dict[str, Any]) -> None:
+        """Epoch a metric using a method."""
+        if self.verbose:
+            print(f"\t\tEpoching {signal_type.upper()} metric for '{key}' using {method}...")
+
+        if method not in ["fixed_duration", "fixed_number", "sliding_window"]:
+            raise ValueError("Method must be one of ['fixed_duration', 'fixed_number', 'sliding_window'].")
+
+        if not self.data_processed:
+            raise ValueError("Data has not been processed. Please process the data before epoching.")
+
+        if signal_type not in ["eda", "bvp", "temperature"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+
+        if method == "fixed_duration":
+            if "duration" not in kwargs:
+                duration = 60.0  # Default duration in seconds
+            else:
+                duration = kwargs["duration"] # Duration in seconds
+            if "overlap" not in kwargs:
+                overlap = 0.0  # Default overlap in seconds
+            else:
+                overlap = kwargs["overlap"]
+            if is_interval:
+                self.epoch_intervals_serie_with_fixed_duration(signal_type, key, duration, overlap)
+            else:
+                self.epoch_time_serie_with_fixed_duration(signal_type, key, duration, overlap)
+
+        elif method == "fixed_number":
+            if "n_epochs" not in kwargs:
+                n_epochs = 10
+            else:
+                n_epochs = kwargs["n_epochs"]
+            if is_interval:
+                self.epoch_intervals_serie_with_fixed_number(signal_type, key, n_epochs)
+            else:
+                self.epoch_time_serie_with_fixed_number(signal_type, key, n_epochs)
+
+        elif method == "sliding_window":
+            if "duration" not in kwargs:
+                duration = 60.0
+            else:
+                duration = kwargs["duration"]
+            if "step" not in kwargs:
+                step = 10.0
+            else:
+                step = kwargs["step"]
+            if is_interval:
+                self.epoch_intervals_serie_with_sliding_window(signal_type, key, duration, step)
+            else:
+                self.epoch_time_serie_with_sliding_window(signal_type, key, duration, step)
+
+        if self.verbose:
+            print(f"\t\tEpoching complete for {signal_type.upper()} metric '{key}' using {method} method.")
+
+    def epoch_processed_signals(self, method: str = "fixed_duration", **kwargs):
+        """Epoch the signal using the specified method."""
+        if not self.data_processed:
+            raise ValueError("Data has not been processed. Please process the data before epoching.")
+        if method not in ["fixed_duration", "fixed_number", "sliding_window"]:
+            raise ValueError("Method must be one of ['fixed_duration', 'fixed_number', 'sliding_window'].")
+        if self.verbose:
+            print(f"\tEpoching signal for subject {self.subject_id} and session {self.session_id} using method '{method}'...")
+
+        self.eda["epochs"] = {"rs": {}, "session": {}, "method": method}
+        self.bvp["epochs"] = {"rs": {}, "session": {}, "method": method}
+        self.temperature["epochs"] = {"rs": {}, "session": {}, "method": method}
+
+        # Epoch EDA data
+        if "EDA_Tonic" in self.eda["processed"]["rs"].keys():
+            self.epoch_metric("eda", "EDA_Tonic", method, **kwargs)
+        if "EDA_Phasic" in self.eda["processed"]["rs"].keys():
+            self.epoch_metric("eda", "EDA_Phasic", method, **kwargs)
+        # Epoch BVP data
+        if "RR_Intervals" in self.bvp["processed"]["rs"].keys():
+            self.epoch_metric("bvp", "RR_Intervals", method, is_interval=True, **kwargs)
+        # Epoch Temperature data
+
     '''
     def save_processed_data(self, output_path: Path) -> None:
         """Save the processed data to the specified output path."""
@@ -529,4 +876,44 @@ def compute_hrv_metrics(peaks: Union[pd.Series, np.ndarray],
         return {}
 
 
-                
+def segment_signal_epochs(
+    signal: np.ndarray,
+    timestamps: np.ndarray,
+    epoch_len: float = 60.0,
+    epoch_overlap: float = 0.0
+) -> list:
+    """
+    Segment a signal into fixed-length epochs/windows.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        1D array of signal values (e.g., heart rate)
+    timestamps : np.ndarray
+        1D array of timestamps (seconds) matching signal
+    epoch_len : float
+        Length of each epoch in seconds
+    epoch_overlap : float
+        Overlap between epochs in seconds
+
+    Returns
+    -------
+    List of np.ndarray
+        List of signal segments (each a 1D array)
+    """
+    assert len(signal) == len(timestamps), "Signal and timestamps must have same length"
+    segments = []
+    t_min = timestamps[0]
+    t_max = timestamps[-1]
+    step = epoch_len - epoch_overlap
+    n_epochs = int(np.floor((t_max - t_min - epoch_overlap) / step)) + 1
+
+    for i in range(n_epochs):
+        start = t_min + i * step
+        end = start + epoch_len
+        mask = (timestamps >= start) & (timestamps < end)
+        segment = signal[mask]
+        if segment.size > 0:
+            segments.append(segment)
+
+    return segments

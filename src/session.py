@@ -11,7 +11,6 @@ class Session:
     verbose: bool = True
     physio_recordings: [PhysioRecording] = []
 
-
     def __init__(self, session_id: int, family_id: int, seance_id: int, verbose: bool = True):
         
         self.session_id = session_id
@@ -37,12 +36,12 @@ class Session:
         for recording in self.physio_recordings:
             recording.process_raw_data()
 
-    def extract_physio_features(self):
-        """Extract physio features for all physio recordings in the session."""
+    def epoch_physio_recordings(self, method: str = 'fixed_duration', **kwargs):
+        """Epoch all physio recordings for the session."""
         if self.verbose:
-            print(f"Extracting features for physio recordings in session {self.session_id}, family {self.family_id}, seance {self.seance_id}...")
+            print(f"Epoching physio recordings for session {self.session_id}, family {self.family_id}, seance {self.seance_id}...")
         for recording in self.physio_recordings:
-            recording.extract_features()
+            recording.epoch_processed_signals(method=method, **kwargs)
 
     
 
