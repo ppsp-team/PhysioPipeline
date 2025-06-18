@@ -2,22 +2,24 @@ import sys
 sys.path.append('../src/')
 
 from physio_recording import PhysioRecording
-
+from typing import List
 class Session:
 
-    seance_id: int
-    family_id: int
-    session_id: int
-    verbose: bool = True
-    physio_recordings: [PhysioRecording] = []
-
-    def __init__(self, session_id: int, family_id: int, seance_id: int, verbose: bool = True):
-        
+    def __init__(
+        self,
+        session_id: int,
+        family_id: int,
+        seance_id: int,
+        verbose: bool = True,
+    ):
         self.session_id = session_id
-        self.seance_id = seance_id
         self.family_id = family_id
+        self.seance_id = seance_id
         self.verbose = verbose
 
+        self.physio_recordings: List[PhysioRecording] = []
+        
+    
     def add_physio_recording(self, physio_recording: PhysioRecording):
         """Add a PhysioRecording to the session."""
         self.physio_recordings.append(physio_recording)

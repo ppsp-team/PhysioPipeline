@@ -12,9 +12,10 @@ import neurokit2 as nk
 class PhysioRecording:
     """A recording of a single recording."""
 
-    eda: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs', 'features'])
-    bvp: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs', 'features'])
-    temperature: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs', 'features'])
+    eda: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs'])
+    bvp: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs'])
+    temperature: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs'])
+    heartrate: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs'])
 
     subject_id: int = None
     session_id: int = None
@@ -23,7 +24,6 @@ class PhysioRecording:
 
     data_loaded = False
     data_processed = False
-    features_extracted = False
     data_epoched = False
 
     verbose: bool = True
@@ -35,21 +35,25 @@ class PhysioRecording:
             'raw': {},
             'processed': {},
             'epochs': {},
-            'features': {}
 
         }
         self.bvp = {
             'raw': {},
             'processed': {},
             'epochs': {},
-            'features': {}
         }
         self.temperature = {
             'raw': {},
             'processed': {},
             'epochs': {},
-            'features': {}
         }
+
+        self.heartrate = {
+            'raw': {},
+            'processed': {},
+            'epochs': {},
+        }
+
         self.verbose = verbose
 
 
@@ -87,7 +91,7 @@ class PhysioRecording:
 
             try:
 
-                if not sheet_name in ["EDA_rs", "EDA_session", "BVP_rs", "BVP_session", "TEMP_rs", "TEMP_session"]:
+                if not sheet_name in ["EDA_rs", "EDA_session", "BVP_rs", "BVP_session", "TEMP_rs", "TEMP_session", "HR_rs", "HR_session"]:
                     continue
                     
                 data = pd.read_excel(xls, sheet_name=sheet_name)
@@ -135,7 +139,17 @@ class PhysioRecording:
                 elif sheet_name == "TEMP_session":
                     self.temperature["raw"]["rs"] = signal_pd
                     if self.verbose:
-                        print(f"\t\tLoaded session Temperature data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")                
+                        print(f"\t\tLoaded session Temperature data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
+
+                elif sheet_name == "HR_rs":
+                    self.heartrate["raw"]["rs"] = signal_pd
+                    if self.verbose:
+                        print(f"\t\tLoaded resting state HR data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
+
+                elif sheet_name == "HR_session":
+                    self.heartrate["raw"]["session"] = signal_pd
+                    if self.verbose:
+                        print(f"\t\tLoaded session HR data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
 
             except Exception as e:
                 raise IOError(f"Error loading physio data: {e}")
@@ -153,6 +167,7 @@ class PhysioRecording:
         self.process_raw_eda()
         self.process_raw_bvp()
         self.process_raw_temperature()
+        self.process_raw_heartrate()
 
         self.data_processed = True
 
@@ -248,6 +263,36 @@ class PhysioRecording:
         if self.verbose:
             print("\t\tProcessing Temperature data... not implemented yet ...")
 
+    def process_raw_heartrate(self) -> None:
+        """Process Heart Rate data."""
+        if not self.data_loaded:
+            raise ValueError("Data has not been loaded. Please load the data before processing.")
+
+        if self.verbose:
+            print("\t\tProcessing Heart Rate data... ")
+
+        # just copy sample rate and series from HR data
+        heartrate_signal_rs = self.heartrate["raw"]["rs"]["data"]
+        heartrate_signal_session = self.heartrate["raw"]["session"]["data"]
+        sampling_rate = self.heartrate["raw"]["rs"]["sampling_rate"]
+
+        if heartrate_signal_rs.empty or heartrate_signal_session.empty:
+            raise ValueError("Heartrate raw data is empty. Please load the data before processing.")
+        
+        heartrate_processed_rs = {index: value for index, value in enumerate(heartrate_signal_rs)}
+        heartrate_processed_session = {index: value for index, value in enumerate(heartrate_signal_session)}
+        
+        self.heartrate["processed"]["rs"] = {
+            "Heartrate": heartrate_processed_rs,
+            "sampling_rate": sampling_rate
+        }
+        self.heartrate["processed"]["session"] = {
+            "Heartrate": heartrate_processed_session,
+            "sampling_rate": sampling_rate
+        }
+
+        if self.verbose:
+            print(f"\t\tProcessed Heart Rate resting state data with {len(heartrate_signal_rs)} samples at {sampling_rate} Hz.")
 
     def compute_rr_intervals_bvp(self) -> None:
         """Extract features from BVP data."""
@@ -297,22 +342,13 @@ class PhysioRecording:
         if duration <= 0:
             raise ValueError("Duration must be a positive integer.")
 
-        if signal_type not in ["eda", "bvp", "temperature"]:
-            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+        if signal_type not in ["eda", "bvp", "temperature", "heartrate"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
         # Retrieve the signal and sampling rate
-        if signal_type == "eda":
-            serie_rs = self.eda["processed"]["rs"][key]
-            serie_session = self.eda["processed"]["session"][key]
-            sampling_rate = self.eda["processed"]["rs"]["sampling_rate"]
-        elif signal_type == "bvp":
-            serie_rs = self.bvp["processed"]["rs"][key]
-            serie_session = self.bvp["processed"]["session"][key]
-            sampling_rate = self.bvp["processed"]["rs"]["sampling_rate"]
-        elif signal_type == "temperature":
-            serie_rs = self.temperature["processed"]["rs"][key]
-            serie_session = self.temperature["processed"]["session"][key]
-            sampling_rate = self.temperature["processed"]["rs"]["sampling_rate"]
+        serie_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
+        serie_session = self.__getattribute__(signal_type)["processed"]["session"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
 
         # Convert the signal to numpy array
         signal_session = np.asarray(list(serie_session.values())).flatten()
@@ -321,15 +357,8 @@ class PhysioRecording:
         # Epoch the signal
         epochs = segment_signal_epochs(signal_session, timestamps, epoch_len=duration, epoch_overlap=overlap)
 
-        if signal_type == "eda":
-            self.eda["epochs"]["rs"][key] = [np.asarray(serie_rs)] # Save the original signal
-            self.eda["epochs"]["session"][key] = epochs
-        elif signal_type == "bvp":
-            self.bvp["epochs"]["rs"][key] = [np.asarray(serie_rs)]
-            self.bvp["epochs"]["session"][key] = epochs
-        elif signal_type == "temperature":
-            self.temperature["epochs"]["rs"][key] = [np.asarray(serie_rs)]
-            self.temperature["epochs"]["session"][key] = epochs
+        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(serie_rs)] # Save the original signal
+        self.__getattribute__(signal_type)["epochs"]["session"][key] = epochs
         
         if self.verbose:
             print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data.")
@@ -345,22 +374,13 @@ class PhysioRecording:
         if n_epochs <= 1:
             raise ValueError("Number of epochs must be greater than 1.")
 
-        if signal_type not in ["eda", "bvp", "temperature"]:
-            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+        if signal_type not in ["eda", "bvp", "temperature", "heartrate"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
-        # Retrieve signal and sampling rate
-        if signal_type == "eda":
-            serie_rs = self.eda["processed"]["rs"][key]
-            serie_session = self.eda["processed"]["session"][key]
-            sampling_rate = self.eda["processed"]["rs"]["sampling_rate"]
-        elif signal_type == "bvp":
-            serie_rs = self.bvp["processed"]["rs"][key]
-            serie_session = self.bvp["processed"]["session"][key]
-            sampling_rate = self.bvp["processed"]["rs"]["sampling_rate"]
-        elif signal_type == "temperature":
-            serie_rs = self.temperature["processed"]["rs"][key]
-            serie_session = self.temperature["processed"]["session"][key]
-            sampling_rate = self.temperature["processed"]["rs"]["sampling_rate"]
+        # Retrieve the signal and sampling rate
+        serie_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
+        serie_session = self.__getattribute__(signal_type)["processed"]["session"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
 
         # Convert signal to numpy
         signal_session = np.asarray(list(serie_session.values())).flatten()
@@ -381,15 +401,9 @@ class PhysioRecording:
             epochs[-1] = np.concatenate([epochs[-1], signal_session[-remaining_samples:]])
 
         # Store
-        if signal_type == "eda":
-            self.eda["epochs"]["rs"][key] = [np.asarray(serie_rs)]
-            self.eda["epochs"]["session"][key] = epochs
-        elif signal_type == "bvp":
-            self.bvp["epochs"]["rs"][key] = [np.asarray(serie_rs)]
-            self.bvp["epochs"]["session"][key] = epochs
-        elif signal_type == "temperature":
-            self.temperature["epochs"]["rs"][key] = [np.asarray(serie_rs)]
-            self.temperature["epochs"]["session"][key] = epochs
+        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(serie_rs)] # Save the original signal
+        self.__getattribute__(signal_type)["epochs"]["session"][key] = epochs
+
 
         if self.verbose:
             print(f"\t\tCreated {len(epochs)} epochs of equal length for {signal_type.upper()} '{key}' data.")
@@ -406,22 +420,13 @@ class PhysioRecording:
         if duration <= 0 or step <= 0:
             raise ValueError("Duration and step must be positive.")
 
-        if signal_type not in ["eda", "bvp", "temperature"]:
-            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+        if signal_type not in ["eda", "bvp", "temperature", "heartrate"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
         # Retrieve the signal and sampling rate
-        if signal_type == "eda":
-            serie_rs = self.eda["processed"]["rs"][key]
-            serie_session = self.eda["processed"]["session"][key]
-            sampling_rate = self.eda["processed"]["rs"]["sampling_rate"]
-        elif signal_type == "bvp":
-            serie_rs = self.bvp["processed"]["rs"][key]
-            serie_session = self.bvp["processed"]["session"][key]
-            sampling_rate = self.bvp["processed"]["rs"]["sampling_rate"]
-        elif signal_type == "temperature":
-            serie_rs = self.temperature["processed"]["rs"][key]
-            serie_session = self.temperature["processed"]["session"][key]
-            sampling_rate = self.temperature["processed"]["rs"]["sampling_rate"]
+        serie_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
+        serie_session = self.__getattribute__(signal_type)["processed"]["session"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
 
         # Convert signal to numpy
         signal_session = np.asarray(list(serie_session.values())).flatten()
@@ -435,15 +440,8 @@ class PhysioRecording:
             epochs.append(signal_session[start:end])
 
         # Store
-        if signal_type == "eda":
-            self.eda["epochs"]["rs"][key] = [np.asarray(serie_rs)]
-            self.eda["epochs"]["session"][key] = epochs
-        elif signal_type == "bvp":
-            self.bvp["epochs"]["rs"][key] = [np.asarray(serie_rs)]
-            self.bvp["epochs"]["session"][key] = epochs
-        elif signal_type == "temperature":
-            self.temperature["epochs"]["rs"][key] = [np.asarray(serie_rs)]
-            self.temperature["epochs"]["session"][key] = epochs
+        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(serie_rs)] # Save the original signal
+        self.__getattribute__(signal_type)["epochs"]["session"][key] = epochs
 
         if self.verbose:
             print(f"\t\tCreated {len(epochs)} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}'.")
@@ -463,18 +461,13 @@ class PhysioRecording:
         duration_ms = duration * 1000  # convert to milliseconds
         overlap_ms = overlap * 1000  # convert to milliseconds
 
-        if signal_type not in ["eda", "bvp", "temperature"]:
-            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+        if signal_type not in ["eda", "bvp", "temperature", "heartrate"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate'].")
 
-        if signal_type == "eda":
-            interval_rs = self.eda["processed"]["rs"][key]
-            interval_session = self.eda["processed"]["session"][key]
-        elif signal_type == "bvp":
-            interval_rs = self.bvp["processed"]["rs"][key]
-            interval_session = self.bvp["processed"]["session"][key]
-        elif signal_type == "temperature":
-            interval_rs = self.temperature["processed"]["rs"][key]
-            interval_session = self.temperature["processed"]["session"][key]
+        # Retrieve the signal and sampling rate
+        interval_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
+        interval_session = self.__getattribute__(signal_type)["processed"]["session"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
 
         def segment_fixed(intervals, duration_ms, overlap_ms):
             segments = []
@@ -488,16 +481,9 @@ class PhysioRecording:
                     segments.append(segment)
                 start += duration_ms - overlap_ms
             return segments
-
-        if signal_type == "eda":
-            self.eda["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.eda["epochs"]["session"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
-        elif signal_type == "bvp":
-            self.bvp["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.bvp["epochs"]["session"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
-        elif signal_type == "temperature":
-            self.temperature["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.temperature["epochs"]["session"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
+        
+        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(interval_rs)]  # Save the original signal
+        self.__getattribute__(signal_type)["epochs"]["session"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
 
         if self.verbose:
             print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} epochs of {duration}s for {signal_type.upper()} '{key}' data.")
@@ -513,18 +499,13 @@ class PhysioRecording:
         if n_epochs <= 1:
             raise ValueError("Number of epochs must be greater than 1.")
 
-        if signal_type not in ["eda", "bvp", "temperature"]:
-            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+        if signal_type not in ["eda", "bvp", "temperature", "heartrate"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
-        if signal_type == "eda":
-            interval_rs = self.eda["processed"]["rs"][key]
-            interval_session = self.eda["processed"]["session"][key]
-        elif signal_type == "bvp":
-            interval_rs = self.bvp["processed"]["rs"][key]
-            interval_session = self.bvp["processed"]["session"][key]
-        elif signal_type == "temperature":
-            interval_rs = self.temperature["processed"]["rs"][key]
-            interval_session = self.temperature["processed"]["session"][key]
+        # Retrieve the signal and sampling rate
+        interval_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
+        interval_session = self.__getattribute__(signal_type)["processed"]["session"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
 
         def segment_equal_chunks(intervals, n):
             length = len(intervals)
@@ -533,15 +514,8 @@ class PhysioRecording:
             segments.append(intervals[(n - 1)*chunk_size:])
             return segments
 
-        if signal_type == "eda":
-            self.eda["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.eda["epochs"]["session"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
-        elif signal_type == "bvp":
-            self.bvp["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.bvp["epochs"]["session"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
-        elif signal_type == "temperature":
-            self.temperature["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.temperature["epochs"]["session"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
+        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(interval_rs)]  # Save the original signal
+        self.__getattribute__(signal_type)["epochs"]["session"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
 
         if self.verbose:
             print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} epochs of equal length for {signal_type.upper()} '{key}' data.")
@@ -560,18 +534,13 @@ class PhysioRecording:
         duration_ms = duration * 1000
         step_ms = step * 1000
 
-        if signal_type not in ["eda", "bvp", "temperature"]:
-            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
+        if signal_type not in ["eda", "bvp", "temperature", "heartrate"]:
+            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
-        if signal_type == "eda":
-            interval_rs = self.eda["processed"]["rs"][key]
-            interval_session = self.eda["processed"]["session"][key]
-        elif signal_type == "bvp":
-            interval_rs = self.bvp["processed"]["rs"][key]
-            interval_session = self.bvp["processed"]["session"][key]
-        elif signal_type == "temperature":
-            interval_rs = self.temperature["processed"]["rs"][key]
-            interval_session = self.temperature["processed"]["session"][key]
+        # Retrieve the signal and sampling rate
+        interval_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
+        interval_session = self.__getattribute__(signal_type)["processed"]["session"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
         
         def segment_sliding(intervals, duration_ms, step_ms):
             segments = []
@@ -586,15 +555,8 @@ class PhysioRecording:
                 start += step_ms
             return segments
 
-        if signal_type == "eda":
-            self.eda["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.eda["epochs"]["session"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
-        elif signal_type == "bvp":
-            self.bvp["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.bvp["epochs"]["session"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
-        elif signal_type == "temperature":
-            self.temperature["epochs"]["rs"][key] = [np.asarray(interval_rs)]
-            self.temperature["epochs"]["session"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
+        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(interval_rs)]  # Save the original signal
+        self.__getattribute__(signal_type)["epochs"]["session"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
         
         if self.verbose:
             print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}' data.")
@@ -610,7 +572,7 @@ class PhysioRecording:
         if not self.data_processed:
             raise ValueError("Data has not been processed. Please process the data before epoching.")
 
-        if signal_type not in ["eda", "bvp", "temperature"]:
+        if signal_type not in ["eda", "bvp", "temperature", "heartrate"]:
             raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
 
         if method == "fixed_duration":
@@ -666,6 +628,7 @@ class PhysioRecording:
         self.eda["epochs"] = {"rs": {}, "session": {}, "method": method}
         self.bvp["epochs"] = {"rs": {}, "session": {}, "method": method}
         self.temperature["epochs"] = {"rs": {}, "session": {}, "method": method}
+        self.heartrate["epochs"] = {"rs": {}, "session": {}, "method": method}
 
         # Epoch EDA data
         if "EDA_Tonic" in self.eda["processed"]["rs"].keys():
@@ -675,7 +638,14 @@ class PhysioRecording:
         # Epoch BVP data
         if "RR_Intervals" in self.bvp["processed"]["rs"].keys():
             self.epoch_metric("bvp", "RR_Intervals", method, is_interval=True, **kwargs)
+        if "Heartrate" in self.heartrate["processed"]["rs"].keys():
+            self.epoch_metric("heartrate", "Heartrate", method, **kwargs)
         # Epoch Temperature data
+
+        self.data_epoched = True
+
+        if self.verbose:
+            print(f"\tEpoching complete for subject {self.subject_id} and session {self.session_id} using method '{method}'.")
 
     '''
     def save_processed_data(self, output_path: Path) -> None:
