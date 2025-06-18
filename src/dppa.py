@@ -5,19 +5,30 @@ from session import Session
 import pandas as pd
 from typing import Dict, Any
 import numpy as np
-import os
-from pathlib import Path
 
 class DPPA:
 
-    def __init__(self):
+    def __init__(self, verbose: bool = True):
+        if not isinstance(verbose, bool):
+            raise ValueError("verbose must be a boolean value")
+
         self.session: Session = None
         self.features: pd.DataFrame = None
+        self.clusters: Dict[str, Any] = {}
 
         self.features: Dict[str, Any] = {}
-        pass
+        self.verbose = verbose
+        if self.verbose:
+            print("DPPA initialized. Ready to set session and compute features.")
 
     def set_session(self, session: Session):
+        """
+        Set the session for DPPA and initialize features.
+        Args:
+            session (Session): The session to set.
+        Raises:
+            ValueError: If session is not an instance of Session or is None.
+        """
         if not isinstance(session, Session):
             raise ValueError("session must be an instance of Session")
         if session is None:
@@ -44,15 +55,32 @@ class DPPA:
                             "session": _empty_metrics_like(physio_recording1.bvp["epochs"]["session"]["RR_Intervals"])
                         }
                     }
+        if self.verbose:
+            print(f"Session {session.session_id} set with {len(session.physio_recordings)} physio recordings. Features initialized.")
 
     def get_session(self) -> Session:
+        """
+        Get the current session.
+        Returns:
+            Session: The current session.
+        Raises:
+            ValueError: If session has not been set.
+        """
         if self.session is None:
             raise ValueError("Session has not been set")
         return self.session
     
     def compute_individual_features(self):
+        """
+        Compute individual features for each subject in the session.
+        Raises:
+            ValueError: If session has not been set or if RR Intervals are not set for a subject.
+        """
         if self.session is None:
             raise ValueError("Session has not been set")
+        
+        if self.verbose:
+            print("Computing individual features for each subject...")
 
         for sid in self.features["subjects"]:
             rr_rs      = self.features["subjects"][sid]["RR_Intervals"]["rs"]
@@ -87,8 +115,82 @@ class DPPA:
                     self.features["subjects"][sid]["SD2"][step][epoch_id]           = sd2
                     self.features["subjects"][sid]["SD1_SD2_Ratio"][step][epoch_id] = sd_ratio
 
+            if self.verbose:
+                print(f"\tComputed features for subject {sid}: Centroid, SD1, SD2, and SD1/SD2 Ratio.")
+        
+        if self.verbose:
+            print("Individual features computed.")
+
+    def compute_clusters(self, threshold: float = 50):
+        """
+        Compute clusters of subjects based on their Centroid features.
+        Args:
+            threshold (float): Distance threshold for clustering.
+        Raises:
+            ValueError: If session has not been set or if Centroid features are not set for subjects.
+        """
+        if self.session is None:
+            raise ValueError("Session has not been set")
+        if self.verbose:
+            print("Computing clusters of subjects based on Centroid features...")
+
+        clusters = {
+            "2-clusters": {},
+            "3-soft-clusters": {},
+            "3-strong-clusters": {}
+        }
+
+        for dyad_id in self.features["dyads"]:
+            clusters["2-clusters"][dyad_id] = 0
+        clusters["3-soft-clusters"] = 0
+        clusters["3-strong-clusters"] = 0
+
+        n_epochs = len(next(iter(self.features["dyads"].values()))["ICD"]["session"])
+
+        for n in range(n_epochs):
+            dyads = list(self.features["dyads"].keys())
+
+            is_cluster = [False] * len(dyads)
+            for dyad in dyads:
+                ICD = self.features["dyads"][dyad]["ICD"]["session"][n]
+                if ICD < threshold:
+                    is_cluster[dyads.index(dyad)] = True
+            if sum(is_cluster) == 3:
+                clusters["3-strong-clusters"] += 1
+            elif sum(is_cluster) == 2:
+                clusters["3-soft-clusters"] += 1
+            elif sum(is_cluster) == 1:
+                dyad = dyads[is_cluster.index(True)]
+                clusters["2-clusters"][dyad] += 1
+
+        # divide by number of epochs to get average counts
+        for key in clusters:
+            if isinstance(clusters[key], dict):
+                for dyad in clusters[key]:
+                    clusters[key][dyad] /= n_epochs
+            else:
+                clusters[key] /= n_epochs
+
+        # Store clusters in features
+        self.features["clusters"] = clusters
+
+        if self.verbose:
+            print("Clusters computed:")
+            for key, value in clusters.items():
+                print(f"\t{key}: {value}")
+        
+
 
     def compute_icd(self):
+        """
+        Compute Inter-Centroid Distances (ICD) for all dyads in the session.
+        Raises:
+            ValueError: If session has not been set or if Centroid features are not set for dyads.
+        """
+        if self.session is None:
+            raise ValueError("Session has not been set")
+        if self.verbose:
+            print("Computing Inter-Centroid Distances (ICD) for all dyads...")
 
         for sid1 in self.features["subjects"]:
             for sid2 in self.features["subjects"]:
@@ -100,6 +202,32 @@ class DPPA:
 
                             icd = np.sqrt(np.sum((np.asarray(c1) - np.asarray(c2)) ** 2))
                             self.features["dyads"][f"{sid1}_{sid2}"]["ICD"][step][epoch_id] = icd
+                    
+                    if self.verbose:
+                        print(f"\tComputed ICD for dyad ({sid1}, {sid2}) in both rs and session steps.")
+
+        if self.verbose:
+            print("ICD computed.")
+
+    def run(self):
+        """
+        Run the full DPPA computation: set session, compute individual features, and compute ICD.
+        Raises:
+            ValueError: If session has not been set.
+        """
+        if self.session is None:
+            raise ValueError("Session has not been set")
+        
+        if self.verbose:
+            print("Running DPPA computation...")
+
+        self.compute_individual_features()
+        self.compute_icd()
+
+        if self.verbose:
+            print("DPPA computation completed.")
+
+from typing import List, Tuple
                             
 def _iter_epochs(container):
     """

@@ -1,3 +1,7 @@
+"""
+This module provides a class for handling physiological recordings, including loading, processing, and epoching data.
+"""
+
 import sys
 sys.path.append('../src/')
 
@@ -10,27 +14,15 @@ import pandas as pd
 import neurokit2 as nk
 
 class PhysioRecording:
-    """A recording of a single recording."""
+    """
+    A class to handle physiological recordings for a subject and session.
+    It supports loading raw data from an Excel file, processing the data, and epoching the time series data.
+    """
 
-    eda: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs'])
-    bvp: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs'])
-    temperature: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs'])
-    heartrate: pd.DataFrame = pd.DataFrame(columns = ['raw', 'processed', 'epochs'])
-
-    subject_id: int = None
-    session_id: int = None
-
-    physio_filepath: Path = None
-
-    data_loaded = False
-    data_processed = False
-    data_epoched = False
-
-    verbose: bool = True
-
-    def __init__(self, subject_id: int, session_id: int, verbose: bool = True) -> None:
-        self.subject_id = subject_id
+    def __init__(self, session_id: int, subject_id: int, seance_id: int, verbose: bool = True) -> None:
         self.session_id = session_id
+        self.subject_id = subject_id
+        self.seance_id = seance_id
         self.eda = {
             'raw': {},
             'processed': {},
@@ -54,11 +46,24 @@ class PhysioRecording:
             'epochs': {},
         }
 
+        self.physio_filepath: Path = None
+
+        self.data_loaded = False
+        self.data_processed = False
+        self.data_epoched = False
+
         self.verbose = verbose
 
-
     def set_physio_filepath(self, physio_filepath: Path) -> None:
-        """Set the file path for the physio recording."""
+        """
+        Set the file path for the physio recording.
+        Args:
+            physio_filepath (Path): The file path for the physio recording.
+            Raises:
+                TypeError: If physio_filepath is not a Path object.
+                ValueError: If physio_filepath does not have a .xlsx extension.
+                FileNotFoundError: If the physio file does not exist.
+        """
         if not isinstance(physio_filepath, Path):
             raise TypeError("physio_filepath must be a Path object.")
         if not physio_filepath.suffix == '.xlsx':
@@ -67,16 +72,27 @@ class PhysioRecording:
             raise FileNotFoundError(f"Physio file {self.physio_filepath} does not exist.")
 
         self.physio_filepath = physio_filepath
+        if self.verbose:
+            print(f"\tPhysio file path set to {self.physio_filepath}")
 
     def get_physio_filepath(self) -> Path:
-        """Get the file path for the physio recording."""
+        """
+        Get the file path for the physio recording.
+        Returns:
+            Path: The file path for the physio recording.
+        """
         if self.physio_filepath is None:
             print("Physio file path has not been set.")
             return None
         return self.physio_filepath
 
     def load_raw_data(self) -> None:
-        """Load the physio data from the file."""
+        """
+        Load raw physiological data from the specified Excel file.
+        Raises:
+            ValueError: If the physio file path has not been set.
+            IOError: If there is an error reading the physio file.
+        """
         if self.physio_filepath is None:
             raise ValueError("Physio file path has not been set.")
 
@@ -157,7 +173,11 @@ class PhysioRecording:
         self.data_loaded = True
 
     def process_raw_data(self) -> None:
-        """Process the physio data."""
+        """
+        Process the raw physiological data for the subject and session.
+        Raises:
+            ValueError: If data has not been loaded before processing.
+        """
         if not self.data_loaded:
             raise ValueError("Data has not been loaded. Please load the data before processing.")
 
@@ -170,6 +190,9 @@ class PhysioRecording:
         self.process_raw_heartrate()
 
         self.data_processed = True
+
+        if self.verbose:
+            print("\t\tProcessing complete.")
 
 
     def process_raw_eda(self) -> None:
@@ -332,7 +355,18 @@ class PhysioRecording:
 
 
     def epoch_time_serie_with_fixed_duration(self, signal_type: str, key: str, duration: int, overlap: int = 0) -> None:
-        """Epoch time series with a fixed duration (in seconds)."""
+        """
+        Epoch time series into fixed-length segments with optional overlap.
+
+        Args:
+            signal_type (str): Type of signal to epoch ('eda', 'bvp', 'temperature', 'heartrate').
+            key (str): Key for the specific time series to epoch.
+            duration (int): Duration of each epoch in seconds.
+            overlap (int, optional): Overlap between epochs in 
+                seconds. Defaults to 0.
+        Raises:
+            ValueError: If data has not been processed, duration is not positive, or signal_type is invalid.
+        """
         if self.verbose:
             print(f"\t\tEpoching {signal_type.upper()} time series for '{key}' with duration {duration}s and overlap {overlap}s.")
 
@@ -364,7 +398,15 @@ class PhysioRecording:
             print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data.")
  
     def epoch_time_serie_with_fixed_number(self, signal_type: str, key: str, n_epochs: int) -> None:
-        """Epoch time series into a fixed number of equal-length segments."""
+        """
+        Epoch time series into a fixed number of equal-length segments.
+        Args:
+            signal_type (str): Type of signal to epoch ('eda', 'bvp', 'temperature', 'heartrate').
+            key (str): Key for the specific time series to epoch.
+            n_epochs (int): Number of epochs to create.
+        Raises:
+            ValueError: If data has not been processed, n_epochs is not greater than 1, or signal_type is invalid.
+        """
         if self.verbose:
             print(f"\t\tEpoching {signal_type.upper()} time series for '{key}' into {n_epochs} equal epochs...")
 
@@ -410,7 +452,16 @@ class PhysioRecording:
 
 
     def epoch_time_serie_with_sliding_window(self, signal_type: str, key: str, duration: float, step: float) -> None:
-        """Epoch time series using a sliding window of fixed duration and step (both in seconds)."""
+        """
+        Epoch time series using a sliding window approach.
+        Args:
+            signal_type (str): Type of signal to epoch ('eda', 'bvp', 'temperature', 'heartrate').
+            key (str): Key for the specific time series to epoch.
+            duration (float): Duration of each epoch in seconds.
+            step (float): Step size for the sliding window in seconds.
+        Raises:
+            ValueError: If data has not been processed, duration or step is not positive, or signal_type is invalid.
+        """
         if self.verbose:
             print(f"\t\tSliding-window epoching {signal_type.upper()} time series for '{key}' with duration {duration}s and step {step}s...")
 
@@ -448,7 +499,16 @@ class PhysioRecording:
 
 
     def epoch_intervals_serie_with_fixed_duration(self, signal_type: str, key: str, duration: float, overlap: float = 0.0) -> None:
-        """Epoch interval series (e.g., RR, ISI) with a fixed duration (in seconds)."""
+        """
+        Epoch interval series (e.g., RR, ISI) into fixed-length segments with optional overlap.
+        Args:
+            signal_type (str): Type of signal to epoch ('eda', 'bvp', 'temperature', 'heartrate').
+            key (str): Key for the specific interval series to epoch.
+            duration (float): Duration of each epoch in seconds.
+            overlap (float, optional): Overlap between epochs in seconds. Defaults to 0.0.
+        Raises:
+            ValueError: If data has not been processed, duration is not positive, or signal_type is invalid.
+        """
         if self.verbose:
             print(f"\t\tEpoching {signal_type.upper()} interval series for '{key}' with fixed duration {duration}s...")
 
@@ -489,7 +549,15 @@ class PhysioRecording:
             print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} epochs of {duration}s for {signal_type.upper()} '{key}' data.")
 
     def epoch_intervals_serie_with_fixed_number(self, signal_type: str, key: str, n_epochs: int) -> None:
-        """Epoch interval series (e.g., RR, ISI) into a fixed number of segments."""
+        """
+        Epoch interval series (e.g., RR, ISI) into a fixed number of equal-length segments.
+        Args:
+            signal_type (str): Type of signal to epoch ('eda', 'bvp', 'temperature', 'heartrate').
+            key (str): Key for the specific interval series to epoch.
+            n_epochs (int): Number of epochs to create.
+        Raises:
+            ValueError: If data has not been processed, n_epochs is not greater than 1, or signal_type is invalid.
+        """
         if self.verbose:
             print(f"\t\tEpoching {signal_type.upper()} interval series for '{key}' into {n_epochs} equal parts...")
 
@@ -521,7 +589,16 @@ class PhysioRecording:
             print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} epochs of equal length for {signal_type.upper()} '{key}' data.")
 
     def epoch_intervals_serie_with_sliding_window(self, signal_type: str, key: str, duration: float, step: float) -> None:
-        """Epoch interval series (e.g., RR, ISI) using sliding window (in seconds)."""
+        """
+        Epoch interval series (e.g., RR, ISI) using a sliding window approach.
+        Args:
+            signal_type (str): Type of signal to epoch ('eda', 'bvp', 'temperature', 'heartrate').
+            key (str): Key for the specific interval series to epoch.
+            duration (float): Duration of each epoch in seconds.
+            step (float): Step size for the sliding window in seconds.
+        Raises:
+            ValueError: If data has not been processed, duration or step is not positive, or signal_type is invalid.
+        """
         if self.verbose:
             print(f"\t\tSliding-window epoching {signal_type.upper()} interval series for '{key}' with duration {duration}s and step {step}s...")
 
@@ -562,7 +639,17 @@ class PhysioRecording:
             print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}' data.")
 
     def epoch_metric(self, signal_type: str, key: str, method: str, is_interval: bool = False, **kwargs: Dict[str, Any]) -> None:
-        """Epoch a metric using a method."""
+        """
+        Epoch a specific metric (e.g., EDA, BVP, Temperature, Heartrate) using the specified method.
+        Args:
+            signal_type (str): Type of signal to epoch ('eda', 'bvp', 'temperature', 'heartrate').
+            key (str): Key for the specific metric to epoch.
+            method (str): Method for epoching ('fixed_duration', 'fixed_number', 'sliding_window').
+            is_interval (bool, optional): Whether the metric is an interval series (e.g., RR intervals). Defaults to False.
+            **kwargs: Additional keyword arguments for the epoching method.
+        Raises:
+            ValueError: If data has not been processed, method is invalid, or signal_type is invalid.
+        """
         if self.verbose:
             print(f"\t\tEpoching {signal_type.upper()} metric for '{key}' using {method}...")
 
@@ -617,7 +704,14 @@ class PhysioRecording:
             print(f"\t\tEpoching complete for {signal_type.upper()} metric '{key}' using {method} method.")
 
     def epoch_processed_signals(self, method: str = "fixed_duration", **kwargs):
-        """Epoch the signal using the specified method."""
+        """
+        Epoch the processed physiological signals using the specified method.
+        Args:
+            method (str): Method for epoching ('fixed_duration', 'fixed_number', 'sliding_window').
+            **kwargs: Additional keyword arguments for the epoching method.
+        Raises:
+            ValueError: If data has not been processed, method is invalid, or if the method is not supported.
+        """
         if not self.data_processed:
             raise ValueError("Data has not been processed. Please process the data before epoching.")
         if method not in ["fixed_duration", "fixed_number", "sliding_window"]:
@@ -647,49 +741,7 @@ class PhysioRecording:
         if self.verbose:
             print(f"\tEpoching complete for subject {self.subject_id} and session {self.session_id} using method '{method}'.")
 
-    '''
-    def save_processed_data(self, output_path: Path) -> None:
-        """Save the processed data to the specified output path."""
-        if not self.data_loaded:
-            raise ValueError("Data has not been loaded. Please load the data before saving.")
-
-        if not isinstance(output_path, Path):
-            raise TypeError("output_path must be a Path object.")
-        
-        if not output_path.exists():
-            output_path.mkdir(parents=True, exist_ok=True)
-
-        eda_df = pd.DataFrame(self.eda["processed"])
-        bvp_df = pd.DataFrame(self.bvp["processed"])
-        temperature_df = pd.DataFrame(self.temperature["processed"])
-
-        eda_df.to_excel(output_path / f"eda_processed_{self.subject_id}_{self.session_id}.xlsx", index=False)
-        bvp_df.to_excel(output_path / f"bvp_processed_{self.subject_id}_{self.session_id}.xlsx", index=False)
-        temperature_df.to_excel(output_path / f"temperature_processed_{self.subject_id}_{self.session_id}.xlsx", index=False)
-
-        if self.verbose:
-            print(f"Processed data saved to {output_path}")
-    '''
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 
 def compute_rr_intervals(processed_ppg: pd.DataFrame, sampling_rate: int, verbose: bool = True) -> np.ndarray:
     """
     Compute RR intervals from processed PPG signal.
