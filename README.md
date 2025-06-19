@@ -39,9 +39,8 @@ https://github.com/Ramdam17
     ├── session.py            # Session orchestration class
     ├── physio_recording.py   # low-level I/O & preprocessing
     ├── dppa.py               # DPPA algorithm wrapper
-    ├── visualization.py      # convenience plotting helpers
-    ├── subject.py, helpers.py
-    └── __init__.py
+    ├── subject.py            # Subject class
+    ├── helpers.py
 ```
 
 ---
