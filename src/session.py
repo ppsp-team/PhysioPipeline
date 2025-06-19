@@ -236,8 +236,8 @@ class Session:
                 rr_tm = rr_session[:-1]
                 ax2.scatter(rr_t, rr_tm, label='Session', color='orange', alpha=0.5)
                 ax2.set_title(f"Session - Subject {recording.subject_id}")
-                ax2.set_ylim(bottom=0, top=2000)
-                ax2.set_xlim(left=0, right=2000)
+                ax2.set_ylim(bottom=0, top=2500)
+                ax2.set_xlim(left=0, right=2500)
                 ax2.set_xlabel("RR Interval (t)")
                 ax2.set_ylabel("RR Interval (t-1)")
                 ax2.axhline(0, color='black', lw=0.5, ls='--')

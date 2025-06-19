@@ -338,8 +338,15 @@ class PhysioRecording:
         # Correct RR intervals
         min_rr = 300  # ms, physiological limit for minimum RR interval
         max_rr = 2000  # ms, physiological limit for maximum RR interval
-        corrected_rr_rs = correct_rr_intervals(rr_intervals_rs, min_rr=min_rr, max_rr=max_rr, verbose=self.verbose)
-        corrected_rr_session = correct_rr_intervals(rr_intervals_session, min_rr=min_rr, max_rr=max_rr, verbose=self.verbose)
+
+        corrected_rr_rs = rr_intervals_rs.copy()
+        corrected_rr_session = rr_intervals_session.copy()
+        anomaly_ratio = 1.0
+
+        while anomaly_ratio > 0.01:
+            corrected_rr_rs, anomaly_ratio_rs = correct_rr_intervals(corrected_rr_rs, min_rr=min_rr, max_rr=max_rr, verbose=self.verbose)
+            corrected_rr_session, anomaly_ratio_session = correct_rr_intervals(corrected_rr_session, min_rr=min_rr, max_rr=max_rr, verbose=self.verbose)
+            anomaly_ratio = max(anomaly_ratio_rs, anomaly_ratio_session)
 
         if self.verbose:
             print(f"\t\tExtracted {len(corrected_rr_rs)} RR intervals from resting state BVP data.")
@@ -816,12 +823,16 @@ def correct_rr_intervals(rr_intervals: np.ndarray,
                     
         elif current_rr > max_rr:  # Too large -> Possible missed peaks
             anomalies += 1
-            if corrected_rr and i + 1 < len(rr_intervals):
-                reference = (corrected_rr[-1] + rr_intervals[i + 1])/2
+            if len(rr_intervals) > 2 and i + 2 < len(rr_intervals):
+                reference = np.median(rr_intervals[i-2:i+2])  # Use median of surrounding intervals
+                if reference < min_rr or reference > max_rr:
+                    if verbose:
+                        print(f"\t\tWarning: Reference RR interval {reference} ms is outside physiological limits.")
+                    reference = np.median(rr_intervals)
             else:
                 reference = np.median(rr_intervals)
             
-            num_splits = max(1, int(np.round(current_rr / reference)))
+            num_splits = max(2, int(np.round(current_rr / reference)))
             split_value = current_rr / num_splits
             corrected_rr.extend([split_value] * num_splits)
 
@@ -837,7 +848,7 @@ def correct_rr_intervals(rr_intervals: np.ndarray,
         if anomaly_ratio > 0.1:
             print("\t\tWarning: High anomaly ratio detected, consider reviewing the data quality.")
     
-    return np.array(corrected_rr)
+    return np.array(corrected_rr), anomaly_ratio
     
 
 def compute_hrv_metrics(peaks: Union[pd.Series, np.ndarray], 
