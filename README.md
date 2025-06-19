@@ -14,11 +14,10 @@
 ---
 
 ## 🙌 Contributors
-
-1. https://github.com/lenaadel  
-2. https://github.com/patricefortin  
-3. https://github.com/marvelchris21  
-4. https://github.com/Ramdam17
+https://github.com/lenaadel  
+https://github.com/patricefortin  
+https://github.com/marvelchris21  
+https://github.com/Ramdam17
 
 ---
 
