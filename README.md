@@ -1,6 +1,6 @@
 # Therasync Physio Pipeline
 
-> **Purpose** – A minimal yet complete Python/Poetry stack for loading, preprocessing, analyzing and visualizing multi-modal physiological recordings collected in the **Therasync** research programme.
+> **Purpose** – A minimal Python/Poetry stack for loading, preprocessing, analyzing and visualizing multi-modal physiological recordings collected in the **Therasync** research programme.
 
 ---
 
