@@ -7,8 +7,9 @@
 ## ✨ Key facts
 
 * **Project name** Therasync Physiological Data Pipeline  
-* **Scope** Resting-state & in-session EDA, BVP, Temperature, HR signals ➜ synchrony metrics & Dynamic Physiological Pattern Analysis (DPPA).  
-* **Article that sparked this repo** [IEEE T-Affective Computing, 2024 – *Dynamic Pattern Analysis for Family Therapy*](https://ieeexplore.ieee.org/document/10778537).  
+* **Scope** Resting-state & in-session EDA, BVP, Temperature, HR signals ➜ synchrony metrics & Dyadic Poincaré Plot Analysis (DPPA).  
+* **Article that sparked this repo** [*
+Elucidating Interpersonal Cardiac Synchrony During a Naturalistic Social Interaction Using Dyadic Poincaré Plot Analysis*](https://ieeexplore.ieee.org/document/10778537).  
 * **Licence** **The Unlicense** – public domain; fork, copy, break, remix, commercialize, do anything. No warranty.
 
 ---
