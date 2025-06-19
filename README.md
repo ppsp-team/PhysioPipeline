@@ -18,7 +18,7 @@
 1. https://github.com/lenaadel  
 2. https://github.com/patricefortin  
 3. https://github.com/marvelchris21  
-4. https://github.com/Ramdam17 ← main maintainer
+4. https://github.com/Ramdam17
 
 ---
 
