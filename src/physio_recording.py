@@ -26,24 +26,7 @@ class PhysioRecording:
         self.subject_id = subject_id
         self.seance_id = seance_id
 
-        self.eda = {
-            'raw': {},
-            'processed': {},
-            'epochs': {},
-
-        }
         self.bvp = {
-            'raw': {},
-            'processed': {},
-            'epochs': {},
-        }
-        self.temperature = {
-            'raw': {},
-            'processed': {},
-            'epochs': {},
-        }
-
-        self.heartrate = {
             'raw': {},
             'processed': {},
             'epochs': {},
@@ -490,9 +473,6 @@ class PhysioRecording:
         if not self.data_processed:
             raise ValueError("Data has not been processed. Please process the data before epoching.")
 
-        if signal_type not in ["eda", "bvp", "temperature", "heartrate"]:
-            raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature'].")
-
         if method == "fixed_duration":
             if "duration" not in kwargs:
                 duration = 60.0  # Default duration in seconds
@@ -550,21 +530,11 @@ class PhysioRecording:
         if self.verbose:
             print(f"\tEpoching signal for subject {self.subject_id} and session {self.session_id} using method '{method}'...")
 
-        self.eda["epochs"] = {"method": method}
         self.bvp["epochs"] = {"method": method}
-        self.temperature["epochs"] = {"method": method}
-        self.heartrate["epochs"] = {"method": method}
 
         # Epoch EDA data
-        if "EDA_Tonic" in self.eda["processed"].keys():
-            self.epoch_metric("eda", "EDA_Tonic", method, **kwargs)
-        if "EDA_Phasic" in self.eda["processed"].keys():
-            self.epoch_metric("eda", "EDA_Phasic", method, **kwargs)
-        # Epoch BVP data
         if "RR_Intervals" in self.bvp["processed"].keys():
             self.epoch_metric("bvp", "RR_Intervals", method, is_interval=True, **kwargs)
-        if "Heartrate" in self.heartrate["processed"].keys():
-            self.epoch_metric("heartrate", "Heartrate", method, **kwargs)
         # Epoch Temperature data
 
         self.data_epoched = True

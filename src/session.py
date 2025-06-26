@@ -12,7 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
-
 class Session:
     """
     Class representing a session containing physio recordings.
@@ -113,7 +112,7 @@ class Session:
             print(f"Physio recordings for session {self.session_id} have been epoch processed using method '{method}'.")
 
 
-    def plot_time_series(self, signal_type: str, key: str, min_y: float = None, max_y: float = None, return_fig: bool = False):
+    def plot_time_series(self, signal_type: str, moment:str, key: str, min_y: float = None, max_y: float = None, return_fig: bool = False):
         """
         Plot time series for a specific signal type and key from the physio recordings in the session.
         Args:
@@ -125,9 +124,6 @@ class Session:
             ValueError: If signal_type is not one of the valid types or if key is not valid."""
         if self.verbose:
             print(f"Plotting time series for signal type '{signal_type}' and key '{key}' for session {self.session_id}, family {self.family_id}, seance {self.seance_id}...")
-
-        if signal_type not in ['eda', 'bvp', 'temperature', 'heartrate']:
-            raise ValueError(f"Invalid signal type '{signal_type}'. Valid types are 'eda', 'bvp', 'temperature', 'heartrate'.")
         
         # Create a figure with two columns and three rows
         fig = plt.figure(figsize=(15, 10))
@@ -140,7 +136,7 @@ class Session:
             ax1 = fig.add_subplot(gs[i, 0])
             ax2 = fig.add_subplot(gs[i, 1])
             # Plot the raw signal
-            session_data = recording.__getattribute__(signal_type)["processed"][key]
+            session_data = recording.__getattribute__(signal_type)["processed"][moment][key]
             if isinstance(session_data, dict):
                 session_data = list(session_data.values())
             if session_data is not None:
@@ -168,7 +164,7 @@ class Session:
         return None
     
 
-    def plot_poincare_map(self, return_fig: bool = False):
+    def plot_poincare_map(self, moment: str, return_fig: bool = False):
         """
         Plot Poincare maps for all physio recordings in the session.
         Returns:
@@ -192,7 +188,7 @@ class Session:
 
             ax1 = fig.add_subplot(gs[i, 0])
 
-            rr_session = recording.bvp["processed"]["RR_Intervals"]
+            rr_session = recording.bvp["processed"][moment]["RR_Intervals"]
             if rr_session is not None and len(rr_session) >= 3:
                 rr_session = np.asarray(rr_session, dtype=float).ravel()
                 rr_t = rr_session[1:]
