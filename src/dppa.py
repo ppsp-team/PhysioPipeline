@@ -44,18 +44,12 @@ class DPPA:
 
         for physio_recording1 in session.physio_recordings:
             self.features["subjects"][physio_recording1.subject_id] = {
-                "RR_Intervals": {
-                    "rs": physio_recording1.bvp["epochs"]["rs"]["RR_Intervals"],
-                    "session": physio_recording1.bvp["epochs"]["session"]["RR_Intervals"]               
+                    "RR_Intervals": physio_recording1.bvp["epochs"]["RR_Intervals"]
                 }
-            }
             for physio_recording2 in session.physio_recordings:
                 if physio_recording1.subject_id < physio_recording2.subject_id:
                     self.features["dyads"][f"{physio_recording1.subject_id}_{physio_recording2.subject_id}"] = {
-                        "ICD": {
-                            "rs": _empty_metrics_like(physio_recording1.bvp["epochs"]["rs"]["RR_Intervals"]),
-                            "session": _empty_metrics_like(physio_recording1.bvp["epochs"]["session"]["RR_Intervals"])
-                        }
+                        "ICD": _empty_metrics_like(physio_recording1.bvp["epochs"]["RR_Intervals"])
                     }
         if self.verbose:
             print(f"Session {session.session_id} set with {len(session.physio_recordings)} physio recordings. Features initialized.")
@@ -85,37 +79,35 @@ class DPPA:
             print("Computing individual features for each subject...")
 
         for sid in self.features["subjects"]:
-            rr_rs      = self.features["subjects"][sid]["RR_Intervals"]["rs"]
-            rr_session = self.features["subjects"][sid]["RR_Intervals"]["session"]
+            rr_session = self.features["subjects"][sid]["RR_Intervals"]
 
-            if rr_rs is None or rr_session is None:
+            if rr_session is None:
                 raise ValueError(f"RR Intervals for subject {sid} are not set")
 
             # Pre-allocate
-            self.features["subjects"][sid]["Centroid"]      = {"rs": _empty_metrics_like(rr_rs), "session": _empty_metrics_like(rr_session)}
-            self.features["subjects"][sid]["SD1"]           = {"rs": _empty_metrics_like(rr_rs), "session": _empty_metrics_like(rr_session)}
-            self.features["subjects"][sid]["SD2"]           = {"rs": _empty_metrics_like(rr_rs), "session": _empty_metrics_like(rr_session)}
-            self.features["subjects"][sid]["SD1_SD2_Ratio"] = {"rs": _empty_metrics_like(rr_rs), "session": _empty_metrics_like(rr_session)}
+            self.features["subjects"][sid]["Centroid"]      = _empty_metrics_like(rr_session)
+            self.features["subjects"][sid]["SD1"]           = _empty_metrics_like(rr_session)
+            self.features["subjects"][sid]["SD2"]           = _empty_metrics_like(rr_session)
+            self.features["subjects"][sid]["SD1_SD2_Ratio"] = _empty_metrics_like(rr_session)
 
             # Compute metrics
-            for step, rr_container in [("rs", rr_rs), ("session", rr_session)]:
-                for epoch_id, rr_raw in _iter_epochs(rr_container):
-                    rr = np.asarray(rr_raw, dtype=float).ravel()
-                    if rr.size < 3:
-                        raise ValueError(f"Need ≥3 RR intervals in epoch {epoch_id} (sid {sid})")
+            for epoch_id, rr_raw in _iter_epochs(rr_session):
+                rr = np.asarray(rr_raw, dtype=float).ravel()
+                if rr.size < 3:
+                    raise ValueError(f"Need ≥3 RR intervals in epoch {epoch_id} (sid {sid})")
 
-                    rr_t  = rr[1:]
-                    rr_tm = rr[:-1]
+                rr_t  = rr[1:]
+                rr_tm = rr[:-1]
 
-                    centroid = [rr_t.mean(), rr_tm.mean()]
-                    sd1 = np.std(rr_t - rr_tm, ddof=1) / np.sqrt(2.0)
-                    sd2 = np.std(rr_t + rr_tm, ddof=1) / np.sqrt(2.0)
-                    sd_ratio = sd1 / sd2 if sd2 else np.inf
+                centroid = [rr_t.mean(), rr_tm.mean()]
+                sd1 = np.std(rr_t - rr_tm, ddof=1) / np.sqrt(2.0)
+                sd2 = np.std(rr_t + rr_tm, ddof=1) / np.sqrt(2.0)
+                sd_ratio = sd1 / sd2 if sd2 else np.inf
 
-                    self.features["subjects"][sid]["Centroid"][step][epoch_id]      = centroid
-                    self.features["subjects"][sid]["SD1"][step][epoch_id]           = sd1
-                    self.features["subjects"][sid]["SD2"][step][epoch_id]           = sd2
-                    self.features["subjects"][sid]["SD1_SD2_Ratio"][step][epoch_id] = sd_ratio
+                self.features["subjects"][sid]["Centroid"][epoch_id]      = centroid
+                self.features["subjects"][sid]["SD1"][epoch_id]           = sd1
+                self.features["subjects"][sid]["SD2"][epoch_id]           = sd2
+                self.features["subjects"][sid]["SD1_SD2_Ratio"][epoch_id] = sd_ratio
 
             if self.verbose:
                 print(f"\tComputed features for subject {sid}: Centroid, SD1, SD2, and SD1/SD2 Ratio.")
@@ -137,16 +129,15 @@ class DPPA:
         for sid1 in self.features["subjects"]:
             for sid2 in self.features["subjects"]:
                 if sid1 < sid2:
-                    for step in ["rs", "session"]:
-                        for epoch_id, rr in _iter_epochs(self.features["subjects"][sid1]["Centroid"][step]):
-                            c1 = self.features["subjects"][sid1]["Centroid"][step][epoch_id]
-                            c2 = self.features["subjects"][sid2]["Centroid"][step][epoch_id]
+                    for epoch_id, rr in _iter_epochs(self.features["subjects"][sid1]["Centroid"]):
+                        c1 = self.features["subjects"][sid1]["Centroid"][epoch_id]
+                        c2 = self.features["subjects"][sid2]["Centroid"][epoch_id]
 
-                            icd = np.sqrt(np.sum((np.asarray(c1) - np.asarray(c2)) ** 2))
-                            self.features["dyads"][f"{sid1}_{sid2}"]["ICD"][step][epoch_id] = icd
+                        icd = np.sqrt(np.sum((np.asarray(c1) - np.asarray(c2)) ** 2))
+                        self.features["dyads"][f"{sid1}_{sid2}"]["ICD"][epoch_id] = icd
                     
-                    if self.verbose:
-                        print(f"\tComputed ICD for dyad ({sid1}, {sid2}) in both rs and session steps.")
+                if self.verbose:
+                    print(f"\tComputed ICD for dyad ({sid1}, {sid2}).")
 
         if self.verbose:
             print("ICD computed.")
@@ -184,30 +175,22 @@ class DPPA:
 
         clusters = {
             "2-clusters": {},
-            "3-soft-clusters": {},
-            "3-strong-clusters": {}
         }
 
         for dyad_id in self.features["dyads"]:
             clusters["2-clusters"][dyad_id] = 0
-        clusters["3-soft-clusters"] = 0
-        clusters["3-strong-clusters"] = 0
 
-        n_epochs = len(next(iter(self.features["dyads"].values()))["ICD"]["session"])
+        n_epochs = len(next(iter(self.features["dyads"].values()))["ICD"])
 
         for n in range(n_epochs):
             dyads = list(self.features["dyads"].keys())
 
             is_cluster = [False] * len(dyads)
             for dyad in dyads:
-                ICD = self.features["dyads"][dyad]["ICD"]["session"][n]
+                ICD = self.features["dyads"][dyad]["ICD"][n]
                 if ICD < threshold:
                     is_cluster[dyads.index(dyad)] = True
-            if sum(is_cluster) == 3:
-                clusters["3-strong-clusters"] += 1
-            elif sum(is_cluster) == 2:
-                clusters["3-soft-clusters"] += 1
-            elif sum(is_cluster) == 1:
+            if sum(is_cluster) == 1:
                 dyad = dyads[is_cluster.index(True)]
                 clusters["2-clusters"][dyad] += 1
 
@@ -245,31 +228,19 @@ class DPPA:
 
         for sid in self.features["subjects"]:
 
-            feature_rs = self.features["subjects"][sid][feature_name]["rs"]
-            if isinstance(feature_rs, dict):
-                feature_rs = [feature_rs[k] for k in sorted(feature_rs.keys())]
-            if isinstance(feature_rs, np.ndarray):
-                feature_rs = feature_rs.tolist()
-
-            feature_session = self.features["subjects"][sid][feature_name]["session"]
+            feature_session = self.features["subjects"][sid][feature_name]
             if isinstance(feature_session, dict):
                 feature_session = [feature_session[k] for k in sorted(feature_session.keys())]
             if isinstance(feature_session, np.ndarray):
                 feature_session = feature_session.tolist()
 
             if feature_name == "Centroid":
-                feature_rs = [np.linalg.norm(np.asarray(c)) for c in feature_rs]
                 feature_session = [np.linalg.norm(np.asarray(c)) for c in feature_session]
 
-            if feature_rs is None or feature_session is None:
+            if feature_session is None:
                 raise ValueError(f"Feature {feature_name} for subject {sid} is not set")
 
             plt.figure(figsize=(10, 5))
-
-            if len(feature_rs) == 1:
-                plt.axhline(y=feature_rs[0], color='r', linestyle='--', label=f'{feature_name} for Subject {sid} RS')
-            else:
-                plt.axhline(y=np.mean(feature_rs), color='r', linestyle='--', label='Mean Feature RS')
 
             plt.plot(feature_session, label=f'{feature_name} for Subject {sid} Session ', marker='x')
 
@@ -345,7 +316,7 @@ class DPPA:
 
 
         for dyad_id, dyad_data in self.features["dyads"].items():
-            icd_session = dyad_data["ICD"]["session"]
+            icd_session = dyad_data["ICD"]
             if isinstance(icd_session, dict):
                 icd_session = [icd_session[k] for k in sorted(icd_session.keys())]
             if isinstance(icd_session, np.ndarray):
@@ -493,11 +464,12 @@ class DPPA:
             ValueError: If session has not been set or if clusters are not computed.
         """
 
+        '''
         sids = list(self.features["subjects"].keys())
 
         n = len(sids)
-        cols = [f"S{s}" for s in sids] + ["soft", "hard", "Total"]
-        mat = np.full((n+1, len(cols)), np.nan)
+        cols = [f"S{s}" for s in sids]
+        mat = np.full((n, n), np.nan)
 
         # group-level soft / hard ratios (use first participant as ref)
         soft_r = self.clusters["3-soft-clusters"]
@@ -553,6 +525,12 @@ class DPPA:
             return fig
         else:
             return None
+        '''
+        for dyad in self.features["dyads"]:
+            s1, s2 = dyad.split("_")
+            s1, s2 = int(s1), int(s2)
+            value = self.clusters["2-clusters"][dyad]
+            print(f"Connectivity for dyad ({s1}, {s2}): {value}")
 
     def plot_weighted_connectivity_graph(self, return_fig: bool = False) -> plt.figure:
         """
@@ -564,6 +542,8 @@ class DPPA:
         Raises:
             ValueError: If session has not been set or if clusters are not computed.
         """
+
+        '''
 
         values = {}
         edges = {}
@@ -604,6 +584,7 @@ class DPPA:
             return fig
         else:
             return None
+        '''
 
                             
 def _iter_epochs(container):

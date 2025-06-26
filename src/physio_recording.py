@@ -23,6 +23,7 @@ class PhysioRecording:
         self.session_id = session_id
         self.subject_id = subject_id
         self.seance_id = seance_id
+
         self.eda = {
             'raw': {},
             'processed': {},
@@ -107,7 +108,7 @@ class PhysioRecording:
 
             try:
 
-                if not sheet_name in ["EDA_rs", "EDA_session", "BVP_rs", "BVP_session", "TEMP_rs", "TEMP_session", "HR_rs", "HR_session"]:
+                if not sheet_name in ["EDA", "BVP", "TEMP", "HR"]:
                     continue
                     
                 data = pd.read_excel(xls, sheet_name=sheet_name)
@@ -127,45 +128,25 @@ class PhysioRecording:
                     signal_pd["duration"] = len(signal_data) / sampling_rate if sampling_rate > 0 else 0
                     signal_pd["data"] = signal_data
                         
-                if sheet_name == "EDA_rs":
-                    self.eda["raw"]["rs"] = signal_pd
+                if sheet_name == "EDA":
+                    self.eda["raw"] = signal_pd
                     if self.verbose:
                         print(f"\t\tLoaded resting state EDA data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")     
                     
-                elif sheet_name == "EDA_session":
-                    self.eda["raw"]["session"] = signal_pd
-                    if self.verbose:
-                        print(f"\t\tLoaded session EDA data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
-
-                elif sheet_name == "BVP_rs":
-                    self.bvp["raw"]["rs"] = signal_pd
+                elif sheet_name == "BVP":
+                    self.bvp["raw"] = signal_pd
                     if self.verbose:
                         print(f"\t\tLoaded resting state BVP data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
-
-                elif sheet_name == "BVP_session":
-                    self.bvp["raw"]["session"] = signal_pd
-                    if self.verbose:
-                        print(f"\t\tLoaded session BVP data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
-                    
-                elif sheet_name == "TEMP_rs":
-                    self.temperature["raw"]["rs"] = signal_pd
+                
+                elif sheet_name == "TEMP":
+                    self.temperature["raw"] = signal_pd
                     if self.verbose:
                         print(f"\t\tLoaded resting state Temperature data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
 
-                elif sheet_name == "TEMP_session":
-                    self.temperature["raw"]["rs"] = signal_pd
-                    if self.verbose:
-                        print(f"\t\tLoaded session Temperature data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
-
-                elif sheet_name == "HR_rs":
-                    self.heartrate["raw"]["rs"] = signal_pd
+                elif sheet_name == "HR":
+                    self.heartrate["raw"] = signal_pd
                     if self.verbose:
                         print(f"\t\tLoaded resting state HR data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
-
-                elif sheet_name == "HR_session":
-                    self.heartrate["raw"]["session"] = signal_pd
-                    if self.verbose:
-                        print(f"\t\tLoaded session HR data from {sheet_name} with {len(signal_data)} samples at {sampling_rate} Hz.")
 
             except Exception as e:
                 raise IOError(f"Error loading physio data: {e}")
@@ -205,38 +186,27 @@ class PhysioRecording:
         if self.verbose:
             print("\t\tProcessing EDA data... ")
 
-        eda_signal_rs = self.eda["raw"]["rs"]["data"]
-        eda_signal_session = self.eda["raw"]["session"]["data"]
-        sampling_rate = self.eda["raw"]["rs"]["sampling_rate"]
-        if eda_signal_rs.empty or eda_signal_session.empty:
+        eda_signal_session = self.eda["raw"]["data"]
+        sampling_rate = self.eda["raw"]["sampling_rate"]
+        if eda_signal_session.empty:
             raise ValueError("EDA raw data is empty. Please load the data before processing.")
         
-        eda_cleaned_signal_rs = nk.eda_clean(eda_signal_rs, sampling_rate=sampling_rate)
         eda_cleaned_signal_session = nk.eda_clean(eda_signal_session, sampling_rate=sampling_rate)
         if self.verbose:
-            print(f"\t\tCleaned EDA resting state data with {len(eda_cleaned_signal_rs)} samples at {sampling_rate} Hz.")
             print(f"\t\tCleaned EDA session data with {len(eda_cleaned_signal_session)} samples at {sampling_rate} Hz.")
 
-        eda_resampled_rs = nk.signal_resample(eda_cleaned_signal_rs, sampling_rate=sampling_rate, desired_sampling_rate=new_sampling_rate, method='interpolation')
         eda_resampled_session = nk.signal_resample(eda_cleaned_signal_session, sampling_rate=sampling_rate, desired_sampling_rate=new_sampling_rate, method='interpolation')
         if self.verbose:
-            print(f"\t\tResampled EDA resting state data to {new_sampling_rate} Hz with {len(eda_resampled_rs)} samples.")
             print(f"\t\tResampled EDA session data to {new_sampling_rate} Hz with {len(eda_resampled_session)} samples.")
 
-        eda_processed_rs, info = nk.eda_process(
-            eda_resampled_rs,
-            sampling_rate=new_sampling_rate)
         eda_processed_session, info = nk.eda_process(
             eda_resampled_session,
             sampling_rate=new_sampling_rate)
 
-        self.eda["processed"]["rs"] = eda_processed_rs.to_dict()
-        self.eda["processed"]["session"] = eda_processed_session.to_dict()
-        self.eda["processed"]["rs"]["sampling_rate"] = new_sampling_rate
-        self.eda["processed"]["session"]["sampling_rate"] = new_sampling_rate
+        self.eda["processed"] = eda_processed_session.to_dict()
+        self.eda["processed"]["sampling_rate"] = new_sampling_rate
 
         if self.verbose:
-            print(f"\t\tProcessed EDA resting state data with {len(eda_cleaned_signal_rs)} samples at {sampling_rate} Hz.")
             print(f"\t\tProcessed EDA session data with {len(eda_cleaned_signal_session)} samples at {sampling_rate} Hz.")
 
 
@@ -248,16 +218,8 @@ class PhysioRecording:
         if self.verbose:
             print("\t\tProcessing BVP data...")
 
-        bvp_signal_rs = self.bvp["raw"]["rs"]["data"]
-        bvp_signal_session = self.bvp["raw"]["session"]["data"]
-        sampling_rate = self.bvp["raw"]["rs"]["sampling_rate"]
-
-        bvp_processed_rs, info = nk.ppg_process(
-                bvp_signal_rs, 
-                sampling_rate=sampling_rate,
-                method='elgendi',
-                method_quality='templatematch'
-            )
+        bvp_signal_session = self.bvp["raw"]["data"]
+        sampling_rate = self.bvp["raw"]["sampling_rate"]
 
         bvp_processed_session, info = nk.ppg_process(
                 bvp_signal_session, 
@@ -266,16 +228,13 @@ class PhysioRecording:
                 method_quality='templatematch'
             )
 
-        self.bvp["processed"]["rs"] = bvp_processed_rs.to_dict()
-        self.bvp["processed"]["session"] = bvp_processed_session.to_dict()
-        self.bvp["processed"]["rs"]["sampling_rate"] = sampling_rate
-        self.bvp["processed"]["session"]["sampling_rate"] = sampling_rate
+        self.bvp["processed"] = bvp_processed_session.to_dict()
+        self.bvp["processed"]["sampling_rate"] = sampling_rate
 
         self.compute_rr_intervals_bvp()
         # TODO: implement HRV metrics computation for BVP data
         
         if self.verbose:
-            print(f"\t\tProcessed BVP resting state data with {len(bvp_processed_rs)} samples at {sampling_rate} Hz.")
             print(f"\t\tProcessed BVP session data with {len(bvp_processed_session)} samples at {sampling_rate} Hz.")
 
     def process_raw_temperature(self) -> None:
@@ -295,69 +254,55 @@ class PhysioRecording:
             print("\t\tProcessing Heart Rate data... ")
 
         # just copy sample rate and series from HR data
-        heartrate_signal_rs = self.heartrate["raw"]["rs"]["data"]
-        heartrate_signal_session = self.heartrate["raw"]["session"]["data"]
-        sampling_rate = self.heartrate["raw"]["rs"]["sampling_rate"]
+        heartrate_signal_session = self.heartrate["raw"]["data"]
+        sampling_rate = self.heartrate["raw"]["sampling_rate"]
 
-        if heartrate_signal_rs.empty or heartrate_signal_session.empty:
+        if heartrate_signal_session.empty:
             raise ValueError("Heartrate raw data is empty. Please load the data before processing.")
         
-        heartrate_processed_rs = {index: value for index, value in enumerate(heartrate_signal_rs)}
         heartrate_processed_session = {index: value for index, value in enumerate(heartrate_signal_session)}
         
-        self.heartrate["processed"]["rs"] = {
-            "Heartrate": heartrate_processed_rs,
-            "sampling_rate": sampling_rate
-        }
-        self.heartrate["processed"]["session"] = {
+        self.heartrate["processed"] = {
             "Heartrate": heartrate_processed_session,
             "sampling_rate": sampling_rate
         }
 
         if self.verbose:
-            print(f"\t\tProcessed Heart Rate resting state data with {len(heartrate_signal_rs)} samples at {sampling_rate} Hz.")
+            print(f"\t\tProcessed Heart Rate session data with {len(heartrate_processed_session)} samples at {sampling_rate} Hz.")
 
     def compute_rr_intervals_bvp(self) -> None:
         """Extract features from BVP data."""
         if self.verbose:
             print("\t\tComputing RR intervals from BVP data...")
 
-        bvp_processed_rs = self.bvp["processed"]["rs"]
-        bvp_processed_session = self.bvp["processed"]["session"]
-        sampling_rate = self.bvp["processed"]["rs"]["sampling_rate"]
+        bvp_processed_session = self.bvp["processed"]
+        sampling_rate = self.bvp["processed"]["sampling_rate"]
 
         if self.verbose:
             print(f"\t\tExtracting RR intervals from BVP data with sampling rate {sampling_rate} Hz...")
 
         # Compute RR intervals
-        rr_intervals_rs = compute_rr_intervals(bvp_processed_rs, sampling_rate, verbose=self.verbose)
         rr_intervals_session = compute_rr_intervals(bvp_processed_session, sampling_rate, verbose=self.verbose)
-        if rr_intervals_rs is None or rr_intervals_session is None:
+        if rr_intervals_session is None:
             raise ValueError("Failed to compute RR intervals from BVP data. Please check the data quality.")
         
         # Correct RR intervals
         min_rr = 300  # ms, physiological limit for minimum RR interval
         max_rr = 2000  # ms, physiological limit for maximum RR interval
 
-        corrected_rr_rs = rr_intervals_rs.copy()
         corrected_rr_session = rr_intervals_session.copy()
         anomaly_ratio = 1.0
 
         while anomaly_ratio > 0.01:
-            corrected_rr_rs, anomaly_ratio_rs = correct_rr_intervals(corrected_rr_rs, min_rr=min_rr, max_rr=max_rr, verbose=self.verbose)
             corrected_rr_session, anomaly_ratio_session = correct_rr_intervals(corrected_rr_session, min_rr=min_rr, max_rr=max_rr, verbose=self.verbose)
-            anomaly_ratio = max(anomaly_ratio_rs, anomaly_ratio_session)
+            anomaly_ratio = anomaly_ratio_session
 
         if self.verbose:
-            print(f"\t\tExtracted {len(corrected_rr_rs)} RR intervals from resting state BVP data.")
             print(f"\t\tExtracted {len(corrected_rr_session)} RR intervals from session BVP data.")
 
-        self.bvp["processed"]["rs"]["RR_Intervals"] = corrected_rr_rs
-
-        self.bvp["processed"]["session"]["RR_Intervals"] = corrected_rr_session
+        self.bvp["processed"]["RR_Intervals"] = corrected_rr_session
 
         if self.verbose:
-            print(f"\t\tComputed RR intervals for resting state BVP data with {len(corrected_rr_rs)} intervals.")
             print(f"\t\tComputed RR intervals for session BVP data with {len(corrected_rr_session)} intervals.")
 
 
@@ -387,9 +332,8 @@ class PhysioRecording:
             raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
         # Retrieve the signal and sampling rate
-        serie_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
-        serie_session = self.__getattribute__(signal_type)["processed"]["session"][key]
-        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
+        serie_session = self.__getattribute__(signal_type)["processed"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["sampling_rate"]
 
         # Convert the signal to numpy array
         signal_session = np.asarray(list(serie_session.values())).flatten()
@@ -398,8 +342,7 @@ class PhysioRecording:
         # Epoch the signal
         epochs = segment_signal_epochs(signal_session, timestamps, epoch_len=duration, epoch_overlap=overlap)
 
-        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(serie_rs)] # Save the original signal
-        self.__getattribute__(signal_type)["epochs"]["session"][key] = epochs
+        self.__getattribute__(signal_type)["epochs"][key] = epochs
         
         if self.verbose:
             print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data.")
@@ -427,9 +370,8 @@ class PhysioRecording:
             raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
         # Retrieve the signal and sampling rate
-        serie_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
-        serie_session = self.__getattribute__(signal_type)["processed"]["session"][key]
-        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
+        serie_session = self.__getattribute__(signal_type)["processed"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["sampling_rate"]
 
         # Convert signal to numpy
         signal_session = np.asarray(list(serie_session.values())).flatten()
@@ -450,9 +392,7 @@ class PhysioRecording:
             epochs[-1] = np.concatenate([epochs[-1], signal_session[-remaining_samples:]])
 
         # Store
-        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(serie_rs)] # Save the original signal
-        self.__getattribute__(signal_type)["epochs"]["session"][key] = epochs
-
+        self.__getattribute__(signal_type)["epochs"][key] = epochs
 
         if self.verbose:
             print(f"\t\tCreated {len(epochs)} epochs of equal length for {signal_type.upper()} '{key}' data.")
@@ -482,9 +422,8 @@ class PhysioRecording:
             raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
         # Retrieve the signal and sampling rate
-        serie_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
-        serie_session = self.__getattribute__(signal_type)["processed"]["session"][key]
-        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
+        serie_session = self.__getattribute__(signal_type)["processed"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["sampling_rate"]
 
         # Convert signal to numpy
         signal_session = np.asarray(list(serie_session.values())).flatten()
@@ -498,8 +437,7 @@ class PhysioRecording:
             epochs.append(signal_session[start:end])
 
         # Store
-        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(serie_rs)] # Save the original signal
-        self.__getattribute__(signal_type)["epochs"]["session"][key] = epochs
+        self.__getattribute__(signal_type)["epochs"][key] = epochs
 
         if self.verbose:
             print(f"\t\tCreated {len(epochs)} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}'.")
@@ -532,9 +470,8 @@ class PhysioRecording:
             raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate'].")
 
         # Retrieve the signal and sampling rate
-        interval_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
-        interval_session = self.__getattribute__(signal_type)["processed"]["session"][key]
-        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
+        interval_session = self.__getattribute__(signal_type)["processed"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["sampling_rate"]
 
         def segment_fixed(intervals, duration_ms, overlap_ms):
             segments = []
@@ -549,11 +486,10 @@ class PhysioRecording:
                 start += duration_ms - overlap_ms
             return segments
         
-        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(interval_rs)]  # Save the original signal
-        self.__getattribute__(signal_type)["epochs"]["session"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
+        self.__getattribute__(signal_type)["epochs"][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
 
         if self.verbose:
-            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} epochs of {duration}s for {signal_type.upper()} '{key}' data.")
+            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs'][key])} epochs of {duration}s for {signal_type.upper()} '{key}' data.")
 
     def epoch_intervals_serie_with_fixed_number(self, signal_type: str, key: str, n_epochs: int) -> None:
         """
@@ -578,9 +514,8 @@ class PhysioRecording:
             raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
         # Retrieve the signal and sampling rate
-        interval_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
-        interval_session = self.__getattribute__(signal_type)["processed"]["session"][key]
-        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
+        interval_session = self.__getattribute__(signal_type)["processed"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["sampling_rate"]
 
         def segment_equal_chunks(intervals, n):
             length = len(intervals)
@@ -589,11 +524,10 @@ class PhysioRecording:
             segments.append(intervals[(n - 1)*chunk_size:])
             return segments
 
-        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(interval_rs)]  # Save the original signal
-        self.__getattribute__(signal_type)["epochs"]["session"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
+        self.__getattribute__(signal_type)["epochs"][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
 
         if self.verbose:
-            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} epochs of equal length for {signal_type.upper()} '{key}' data.")
+            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs'][key])} epochs of equal length for {signal_type.upper()} '{key}' data.")
 
     def epoch_intervals_serie_with_sliding_window(self, signal_type: str, key: str, duration: float, step: float) -> None:
         """
@@ -622,9 +556,8 @@ class PhysioRecording:
             raise ValueError("signal_type must be one of ['eda', 'bvp', 'temperature', 'heartrate].")
 
         # Retrieve the signal and sampling rate
-        interval_rs = self.__getattribute__(signal_type)["processed"]["rs"][key]
-        interval_session = self.__getattribute__(signal_type)["processed"]["session"][key]
-        sampling_rate = self.__getattribute__(signal_type)["processed"]["rs"]["sampling_rate"]
+        interval_session = self.__getattribute__(signal_type)["processed"][key]
+        sampling_rate = self.__getattribute__(signal_type)["processed"]["sampling_rate"]
         
         def segment_sliding(intervals, duration_ms, step_ms):
             segments = []
@@ -639,11 +572,10 @@ class PhysioRecording:
                 start += step_ms
             return segments
 
-        self.__getattribute__(signal_type)["epochs"]["rs"][key] = [np.asarray(interval_rs)]  # Save the original signal
-        self.__getattribute__(signal_type)["epochs"]["session"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
+        self.__getattribute__(signal_type)["epochs"][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
         
         if self.verbose:
-            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs']['session'][key])} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}' data.")
+            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs'][key])} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}' data.")
 
     def epoch_metric(self, signal_type: str, key: str, method: str, is_interval: bool = False, **kwargs: Dict[str, Any]) -> None:
         """
@@ -726,20 +658,20 @@ class PhysioRecording:
         if self.verbose:
             print(f"\tEpoching signal for subject {self.subject_id} and session {self.session_id} using method '{method}'...")
 
-        self.eda["epochs"] = {"rs": {}, "session": {}, "method": method}
-        self.bvp["epochs"] = {"rs": {}, "session": {}, "method": method}
-        self.temperature["epochs"] = {"rs": {}, "session": {}, "method": method}
-        self.heartrate["epochs"] = {"rs": {}, "session": {}, "method": method}
+        self.eda["epochs"] = {"method": method}
+        self.bvp["epochs"] = {"method": method}
+        self.temperature["epochs"] = {"method": method}
+        self.heartrate["epochs"] = {"method": method}
 
         # Epoch EDA data
-        if "EDA_Tonic" in self.eda["processed"]["rs"].keys():
+        if "EDA_Tonic" in self.eda["processed"].keys():
             self.epoch_metric("eda", "EDA_Tonic", method, **kwargs)
-        if "EDA_Phasic" in self.eda["processed"]["rs"].keys():
+        if "EDA_Phasic" in self.eda["processed"].keys():
             self.epoch_metric("eda", "EDA_Phasic", method, **kwargs)
         # Epoch BVP data
-        if "RR_Intervals" in self.bvp["processed"]["rs"].keys():
+        if "RR_Intervals" in self.bvp["processed"].keys():
             self.epoch_metric("bvp", "RR_Intervals", method, is_interval=True, **kwargs)
-        if "Heartrate" in self.heartrate["processed"]["rs"].keys():
+        if "Heartrate" in self.heartrate["processed"].keys():
             self.epoch_metric("heartrate", "Heartrate", method, **kwargs)
         # Epoch Temperature data
 

@@ -113,7 +113,6 @@ class Session:
             print(f"Physio recordings for session {self.session_id} have been epoch processed using method '{method}'.")
 
 
-
     def plot_time_series(self, signal_type: str, key: str, min_y: float = None, max_y: float = None, return_fig: bool = False):
         """
         Plot time series for a specific signal type and key from the physio recordings in the session.
@@ -141,26 +140,9 @@ class Session:
             ax1 = fig.add_subplot(gs[i, 0])
             ax2 = fig.add_subplot(gs[i, 1])
             # Plot the raw signal
-            rs_data = recording.__getattribute__(signal_type)["processed"]["rs"][key]
-            if isinstance(rs_data, dict):
-                rs_data = list(rs_data.values())
-            session_data = recording.__getattribute__(signal_type)["processed"]["session"][key]
+            session_data = recording.__getattribute__(signal_type)["processed"][key]
             if isinstance(session_data, dict):
                 session_data = list(session_data.values())
-            if rs_data is not None:
-                ax1.plot(rs_data, label=f"RS - Subject {recording.subject_id}", color='blue')
-                ax1.set_title(f"{signal_type.upper()} - RS - Subject {recording.subject_id}")
-                ax1.set_xlabel("Time")
-                ax1.set_ylabel(key)
-                ax1.legend()
-                if min_y is not None and max_y is not None:
-                    ax1.set_ylim(min_y, max_y)
-                elif min_y is not None:
-                    ax1.set_ylim(bottom=min_y)
-                elif max_y is not None:
-                    ax1.set_ylim(top=max_y)
-            else:
-                ax1.set_title(f"{signal_type.upper()} - RS - Subject {recording.subject_id} (No Data)")
             if session_data is not None:
                 ax2.plot(session_data, label=f"Session - Subject {recording.subject_id}", color='orange')
                 ax2.set_title(f"{signal_type.upper()} - Session - Subject {recording.subject_id}")
@@ -201,7 +183,7 @@ class Session:
             print(f"Plotting Poincare maps for session {self.session_id}, family {self.family_id}, seance {self.seance_id}...")
 
         fig = plt.figure(figsize=(15, 10))
-        gs = gridspec.GridSpec(3, 2, figure=fig)
+        gs = gridspec.GridSpec(3, 1, figure=fig)
         gs.update(wspace=0.025, hspace=0.05)  # set the spacing between subplots
 
         for i, recording in enumerate(self.physio_recordings):
@@ -209,18 +191,16 @@ class Session:
                 break
 
             ax1 = fig.add_subplot(gs[i, 0])
-            ax2 = fig.add_subplot(gs[i, 1])
 
-            rr_rs = recording.bvp["processed"]["rs"]["RR_Intervals"]
-            rr_session = recording.bvp["processed"]["session"]["RR_Intervals"]
-            if rr_rs is not None and len(rr_rs) >= 3:
-                rr_rs = np.asarray(rr_rs, dtype=float).ravel()
-                rr_t = rr_rs[1:]
-                rr_tm = rr_rs[:-1]
-                ax1.scatter(rr_t, rr_tm, label='RS', color='blue', alpha=0.5)
-                ax1.set_title(f"RS - Subject {recording.subject_id}")
-                ax1.set_ylim(bottom=0, top=2000)
-                ax1.set_xlim(left=0, right=2000)
+            rr_session = recording.bvp["processed"]["RR_Intervals"]
+            if rr_session is not None and len(rr_session) >= 3:
+                rr_session = np.asarray(rr_session, dtype=float).ravel()
+                rr_t = rr_session[1:]
+                rr_tm = rr_session[:-1]
+                ax1.scatter(rr_t, rr_tm, label='Session', color='orange', alpha=0.5)
+                ax1.set_title(f"Session - Subject {recording.subject_id}")
+                ax1.set_ylim(bottom=0, top=2500)
+                ax1.set_xlim(left=0, right=2500)
                 ax1.set_xlabel("RR Interval (t)")
                 ax1.set_ylabel("RR Interval (t-1)")
                 ax1.axhline(0, color='black', lw=0.5, ls='--')
@@ -229,24 +209,7 @@ class Session:
                 ax1.set_ylim(bottom=0)
                 ax1.legend()
             else:
-                ax1.set_title(f"RS - Subject {recording.subject_id} (No Data)")
-            if rr_session is not None and len(rr_session) >= 3:
-                rr_session = np.asarray(rr_session, dtype=float).ravel()
-                rr_t = rr_session[1:]
-                rr_tm = rr_session[:-1]
-                ax2.scatter(rr_t, rr_tm, label='Session', color='orange', alpha=0.5)
-                ax2.set_title(f"Session - Subject {recording.subject_id}")
-                ax2.set_ylim(bottom=0, top=2500)
-                ax2.set_xlim(left=0, right=2500)
-                ax2.set_xlabel("RR Interval (t)")
-                ax2.set_ylabel("RR Interval (t-1)")
-                ax2.axhline(0, color='black', lw=0.5, ls='--')
-                ax2.axvline(0, color='black', lw=0.5, ls='--')
-                ax2.set_xlim(left=0)
-                ax2.set_ylim(bottom=0)
-                ax2.legend()
-            else:
-                ax2.set_title(f"Session - Subject {recording.subject_id} (No Data)")
+                ax1.set_title(f"Session - Subject {recording.subject_id} (No Data)")
         
         plt.suptitle(f"Poincare Maps - Session {self.session_id}, Family {self.family_id}, Seance {self.seance_id}")
         plt.show()
