@@ -6,7 +6,7 @@ import pandas as pd
 from typing import Dict, Any
 import numpy as np
 import matplotlib.pyplot as plt
-
+from matplotlib import gridspec
 
 class DPPA:
 
@@ -43,14 +43,19 @@ class DPPA:
         }
 
         for physio_recording1 in session.physio_recordings:
-            self.features["subjects"][physio_recording1.subject_id] = {
-                    "RR_Intervals": physio_recording1.bvp["epochs"]["RR_Intervals"]
+            self.features["subjects"][physio_recording1.subject_id] = {}
+            for moment in ["ors", "os", "crs", "cs"]:
+                self.features["subjects"][physio_recording1.subject_id][moment] = {
+                    "RR_Intervals": physio_recording1.bvp["epochs"][moment]["RR_Intervals"]
                 }
+
             for physio_recording2 in session.physio_recordings:
-                if physio_recording1.subject_id < physio_recording2.subject_id:
-                    self.features["dyads"][f"{physio_recording1.subject_id}_{physio_recording2.subject_id}"] = {
-                        "ICD": _empty_metrics_like(physio_recording1.bvp["epochs"]["RR_Intervals"])
-                    }
+                    if physio_recording1.subject_id < physio_recording2.subject_id:
+                        self.features["dyads"][f"{physio_recording1.subject_id}_{physio_recording2.subject_id}"] = {}
+                        for moment in ["ors", "os", "crs", "cs"]:
+                            self.features["dyads"][f"{physio_recording1.subject_id}_{physio_recording2.subject_id}"][moment] = {
+                                "ICD": _empty_metrics_like(physio_recording1.bvp["epochs"][moment]["RR_Intervals"])
+                            }
         if self.verbose:
             print(f"Session {session.session_id} set with {len(session.physio_recordings)} physio recordings. Features initialized.")
 
@@ -79,35 +84,40 @@ class DPPA:
             print("Computing individual features for each subject...")
 
         for sid in self.features["subjects"]:
-            rr_session = self.features["subjects"][sid]["RR_Intervals"]
+            for moment in ["ors", "os", "crs", "cs"]:
 
-            if rr_session is None:
-                raise ValueError(f"RR Intervals for subject {sid} are not set")
+                rr_session = self.features["subjects"][sid][moment]["RR_Intervals"]
 
-            # Pre-allocate
-            self.features["subjects"][sid]["Centroid"]      = _empty_metrics_like(rr_session)
-            self.features["subjects"][sid]["SD1"]           = _empty_metrics_like(rr_session)
-            self.features["subjects"][sid]["SD2"]           = _empty_metrics_like(rr_session)
-            self.features["subjects"][sid]["SD1_SD2_Ratio"] = _empty_metrics_like(rr_session)
+                if rr_session is None:
+                    raise ValueError(f"RR Intervals for subject {sid} are not set")
 
-            # Compute metrics
-            for epoch_id, rr_raw in _iter_epochs(rr_session):
-                rr = np.asarray(rr_raw, dtype=float).ravel()
-                if rr.size < 3:
-                    raise ValueError(f"Need ≥3 RR intervals in epoch {epoch_id} (sid {sid})")
+                # Pre-allocate
+                self.features["subjects"][sid][moment]["Centroid"]      = _empty_metrics_like(rr_session)
+                self.features["subjects"][sid][moment]["SD1"]           = _empty_metrics_like(rr_session)
+                self.features["subjects"][sid][moment]["SD2"]           = _empty_metrics_like(rr_session)
+                self.features["subjects"][sid][moment]["SD1_SD2_Ratio"] = _empty_metrics_like(rr_session)
 
-                rr_t  = rr[1:]
-                rr_tm = rr[:-1]
+                # Compute metrics
+                for epoch_id, rr_raw in _iter_epochs(rr_session):
+                    rr = np.asarray(rr_raw, dtype=float).ravel()
+                    if rr.size < 3:
+                        raise ValueError(f"Need ≥3 RR intervals in epoch {epoch_id} (sid {sid})")
 
-                centroid = [rr_t.mean(), rr_tm.mean()]
-                sd1 = np.std(rr_t - rr_tm, ddof=1) / np.sqrt(2.0)
-                sd2 = np.std(rr_t + rr_tm, ddof=1) / np.sqrt(2.0)
-                sd_ratio = sd1 / sd2 if sd2 else np.inf
+                    rr_t  = rr[1:]
+                    rr_tm = rr[:-1]
 
-                self.features["subjects"][sid]["Centroid"][epoch_id]      = centroid
-                self.features["subjects"][sid]["SD1"][epoch_id]           = sd1
-                self.features["subjects"][sid]["SD2"][epoch_id]           = sd2
-                self.features["subjects"][sid]["SD1_SD2_Ratio"][epoch_id] = sd_ratio
+                    centroid = [rr_t.mean(), rr_tm.mean()]
+                    sd1 = np.std(rr_t - rr_tm, ddof=1) / np.sqrt(2.0)
+                    sd2 = np.std(rr_t + rr_tm, ddof=1) / np.sqrt(2.0)
+                    sd_ratio = sd1 / sd2 if sd2 else np.inf
+
+                    self.features["subjects"][sid][moment]["Centroid"][epoch_id]      = centroid
+                    self.features["subjects"][sid][moment]["SD1"][epoch_id]           = sd1
+                    self.features["subjects"][sid][moment]["SD2"][epoch_id]           = sd2
+                    self.features["subjects"][sid][moment]["SD1_SD2_Ratio"][epoch_id] = sd_ratio
+
+                if self.verbose:
+                    print(f"\tComputed features for subject {sid} in moment {moment}.")
 
             if self.verbose:
                 print(f"\tComputed features for subject {sid}: Centroid, SD1, SD2, and SD1/SD2 Ratio.")
@@ -129,15 +139,21 @@ class DPPA:
         for sid1 in self.features["subjects"]:
             for sid2 in self.features["subjects"]:
                 if sid1 < sid2:
-                    for epoch_id, rr in _iter_epochs(self.features["subjects"][sid1]["Centroid"]):
-                        c1 = self.features["subjects"][sid1]["Centroid"][epoch_id]
-                        c2 = self.features["subjects"][sid2]["Centroid"][epoch_id]
 
-                        icd = np.sqrt(np.sum((np.asarray(c1) - np.asarray(c2)) ** 2))
-                        self.features["dyads"][f"{sid1}_{sid2}"]["ICD"][epoch_id] = icd
+                    for moment in ["ors", "os", "crs", "cs"]:
+
+                        for epoch_id, rr in _iter_epochs(self.features["subjects"][sid1][moment]["Centroid"]):
+                            c1 = self.features["subjects"][sid1][moment]["Centroid"][epoch_id]
+                            c2 = self.features["subjects"][sid2][moment]["Centroid"][epoch_id]
+
+                            icd = np.sqrt(np.sum((np.asarray(c1) - np.asarray(c2)) ** 2))
+                            self.features["dyads"][f"{sid1}_{sid2}"][moment]["ICD"][epoch_id] = icd
+
+                            if self.verbose:
+                                print(f"\tICD for dyad ({sid1}, {sid2}) in moment {moment} at epoch {epoch_id}: {icd:.2f}")
                     
-                if self.verbose:
-                    print(f"\tComputed ICD for dyad ({sid1}, {sid2}).")
+                    if self.verbose:
+                        print(f"\tComputed ICD for dyad ({sid1}, {sid2}).")
 
         if self.verbose:
             print("ICD computed.")
@@ -177,30 +193,32 @@ class DPPA:
             "2-clusters": {},
         }
 
-        for dyad_id in self.features["dyads"]:
-            clusters["2-clusters"][dyad_id] = 0
+        for moment in ["ors", "os", "crs", "cs"]:
+            clusters["2-clusters"][moment] = {}
 
-        n_epochs = len(next(iter(self.features["dyads"].values()))["ICD"])
+        for moment in ["ors", "os", "crs", "cs"]:
+            if moment not in self.features["subjects"][next(iter(self.features["subjects"]))]:
+                raise ValueError(f"Centroid features for moment {moment} are not set for subjects.")
 
-        for n in range(n_epochs):
-            dyads = list(self.features["dyads"].keys())
+            for dyad_id in self.features["dyads"]:
+                clusters["2-clusters"][moment][dyad_id] = 0
 
-            is_cluster = [False] * len(dyads)
-            for dyad in dyads:
-                ICD = self.features["dyads"][dyad]["ICD"][n]
-                if ICD < threshold:
-                    is_cluster[dyads.index(dyad)] = True
-            if sum(is_cluster) == 1:
-                dyad = dyads[is_cluster.index(True)]
-                clusters["2-clusters"][dyad] += 1
+            n_epochs = len(next(iter(self.features["dyads"].values()))[moment]["ICD"])
 
-        # divide by number of epochs to get average counts
-        for key in clusters:
-            if isinstance(clusters[key], dict):
-                for dyad in clusters[key]:
-                    clusters[key][dyad] /= n_epochs
-            else:
-                clusters[key] /= n_epochs
+            for n in range(n_epochs):
+                dyads = list(self.features["dyads"].keys())
+
+                is_cluster = [False] * len(dyads)
+                for dyad in dyads:
+                    ICD = self.features["dyads"][dyad][moment]["ICD"][n]
+                    if ICD < threshold:
+                        is_cluster[dyads.index(dyad)] = True
+                if sum(is_cluster) == 1:
+                    dyad = dyads[is_cluster.index(True)]
+                    clusters["2-clusters"][moment][dyad] += 1
+
+            for dyad in list(self.features["dyads"].keys()):
+                clusters["2-clusters"][moment][dyad] /= n_epochs
 
         # Store clusters in features
         self.clusters = clusters
@@ -208,7 +226,8 @@ class DPPA:
         if self.verbose:
             print("Clusters computed:")
             for key, value in clusters.items():
-                print(f"\t{key}: {value}")
+                for moment in ["ors", "os", "crs", "cs"]:
+                    print(f"\t{key}: {value} for moment {moment}")
 
     def plot_feature(self, feature_name: str, y_min: int = 0, y_max: int = 100, return_fig: bool = False):
         """
@@ -226,37 +245,42 @@ class DPPA:
         if feature_name not in ["Centroid", "SD1", "SD2", "SD1_SD2_Ratio"]:
             raise ValueError(f"Feature {feature_name} is not recognized. Available features: Centroid, SD1, SD2, SD1_SD2_Ratio.")
 
-        for sid in self.features["subjects"]:
+        fig = plt.figure(figsize=(15, 10))
+        gs = gridspec.GridSpec(4, 2, figure=fig)
+        gs.update(wspace=0.025, hspace=0.05)  # set the spacing between subplots
 
-            feature_session = self.features["subjects"][sid][feature_name]
-            if isinstance(feature_session, dict):
-                feature_session = [feature_session[k] for k in sorted(feature_session.keys())]
-            if isinstance(feature_session, np.ndarray):
-                feature_session = feature_session.tolist()
+        for i, sid in enumerate(self.features["subjects"]):
 
-            if feature_name == "Centroid":
-                feature_session = [np.linalg.norm(np.asarray(c)) for c in feature_session]
+            for j, moment in enumerate(["ors", "os", "crs", "cs"]):
+                ax = fig.add_subplot(gs[j, i])
 
-            if feature_session is None:
-                raise ValueError(f"Feature {feature_name} for subject {sid} is not set")
+                feature_session = self.features["subjects"][sid][moment][feature_name]
+                if isinstance(feature_session, dict):
+                    feature_session = [feature_session[k] for k in sorted(feature_session.keys())]
+                if isinstance(feature_session, np.ndarray):
+                    feature_session = feature_session.tolist()
 
-            plt.figure(figsize=(10, 5))
+                if feature_name == "Centroid":
+                    feature_session = [np.linalg.norm(np.asarray(c)) for c in feature_session]
 
-            plt.plot(feature_session, label=f'{feature_name} for Subject {sid} Session ', marker='x')
+                if feature_session is None:
+                    raise ValueError(f"Feature {feature_name} for subject {sid} is not set")
 
-            # add a trend line for session SD1
-            z = np.polyfit(range(len(feature_session)), feature_session, 1)
-            p = np.poly1d(z)
-            plt.plot(range(len(feature_session)), p(range(len(feature_session))), color='orange', linestyle='--', label=f'Trend Line {feature_name} Session')
+                ax.plot(feature_session, label=f'{feature_name} for Subject {sid} Session ', marker='x')
 
-            plt.ylim(y_min, y_max)
-            plt.xlim(0, len(feature_session) - 1)
-            plt.title(f'{feature_name} for Subject {sid}')
-            plt.xlabel('Epoch ID')
-            plt.ylabel(f'{feature_name} Value')
-            plt.legend()
-            plt.grid()
-            plt.show()
+                # add a trend line for session SD1
+                z = np.polyfit(range(len(feature_session)), feature_session, 1)
+                p = np.poly1d(z)
+                ax.plot(range(len(feature_session)), p(range(len(feature_session))), color='orange', linestyle='--', label=f'Trend Line {feature_name} Session')
+
+                ax.set_ylim(y_min, y_max)
+                ax.set_xlim(0, len(feature_session) - 1)
+                ax.set_title(f'{feature_name} for Subject {sid}')
+                ax.set_xlabel('Epoch ID')
+                ax.set_ylabel(f'{feature_name} Value')
+                ax.legend()
+            
+        plt.show()
 
         if self.verbose:
             print(f"Feature {feature_name} plotted for all subjects in the session.")
@@ -315,28 +339,37 @@ class DPPA:
             print("Plotting Inter-Centroid Distances (ICD) for all dyads...")
 
 
+        fig = plt.figure(figsize=(15, 10))
+        gs = gridspec.GridSpec(4, 1, figure=fig)
+        gs.update(wspace=0.025, hspace=0.05)  # set the spacing between subplots
+
+
         for dyad_id, dyad_data in self.features["dyads"].items():
-            icd_session = dyad_data["ICD"]
-            if isinstance(icd_session, dict):
-                icd_session = [icd_session[k] for k in sorted(icd_session.keys())]
-            if isinstance(icd_session, np.ndarray):
-                icd_session = icd_session.tolist()
 
-            plt.figure(figsize=(10, 5))
-            plt.plot(icd_session, label=f'Dyad {dyad_id}')
+            for j, moment in enumerate(["ors", "os", "crs", "cs"]):
+                
+                ax = fig.add_subplot(gs[j, 0])
 
-            plt.title(f'Inter-Centroid Distances (ICD) for dyad {dyad_id}')
-            plt.xlabel('Epoch ID')
-            plt.ylabel('ICD Value')
-            plt.ylim(0, 1200)
-            plt.xlim(0, len(icd_session) - 1)
-            plt.axhline(y=np.mean(icd_session), color='r', linestyle='--', label='Mean ICD')
-            # add a trend line
-            z = np.polyfit(range(len(icd_session)), icd_session, 1)
-            p = np.poly1d(z)
-            plt.plot(range(len(icd_session)), p(range(len(icd_session))), color='orange', linestyle='--', label='Trend Line ICD')
-            plt.legend()
-            plt.grid()
+                icd_session = dyad_data[moment]["ICD"]
+                if isinstance(icd_session, dict):
+                    icd_session = [icd_session[k] for k in sorted(icd_session.keys())]
+                if isinstance(icd_session, np.ndarray):
+                    icd_session = icd_session.tolist()
+
+                ax.plot(icd_session, label=f'Dyad {dyad_id} - Moment {moment}')
+
+                ax.set_title(f'Inter-Centroid Distances (ICD) for dyad {dyad_id} - Moment {moment}')
+                ax.set_xlabel('Epoch ID')
+                ax.set_ylabel('ICD Value')
+                ax.set_ylim(0, 1200)
+                ax.set_xlim(0, len(icd_session) - 1)
+                ax.axhline(y=np.mean(icd_session), color='r', linestyle='--', label='Mean ICD')
+                # add a trend line
+                z = np.polyfit(range(len(icd_session)), icd_session, 1)
+                p = np.poly1d(z)
+                ax.plot(range(len(icd_session)), p(range(len(icd_session))), color='orange', linestyle='--', label='Trend Line ICD')
+                ax.legend()
+                ax.grid()
 
         plt.show()
 

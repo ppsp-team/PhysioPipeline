@@ -21,7 +21,7 @@ class PhysioRecording:
     It supports loading raw data from an Excel file, processing the data, and epoching the time series data.
     """
 
-    def __init__(self, session_id: int, subject_id: int, seance_id: int, filepaths: Dict[str: Path], verbose: bool = True) -> None:
+    def __init__(self, session_id: int, subject_id: int, seance_id: int, verbose: bool = True) -> None:
         self.session_id = session_id
         self.subject_id = subject_id
         self.seance_id = seance_id
@@ -32,7 +32,7 @@ class PhysioRecording:
             'epochs': {},
         }
 
-        self.physio_filepaths: Dict[str, Path] = filepaths
+        self.physio_filepaths = None
 
         self.data_loaded = False
         self.data_processed = False
@@ -40,7 +40,7 @@ class PhysioRecording:
 
         self.verbose = verbose
 
-    def set_physio_filepaths(self, physio_filepaths: Dict[str: Path]) -> None:
+    def set_physio_filepaths(self, physio_filepaths) -> None:
         """
         Set the file paths for the physio recording.
         Args:
@@ -49,9 +49,9 @@ class PhysioRecording:
 
         self.physio_filepaths = physio_filepaths
         if self.verbose:
-            print(f"\tPhysio file path set to {self.physio_filepath}")
+            print(f"\tPhysio file path set to {self.physio_filepaths}")
 
-    def get_physio_filepaths(self) -> Dict[str: Path]:
+    def get_physio_filepaths(self):
         """
         Get the file path for the physio recording.
         Returns:
@@ -75,14 +75,24 @@ class PhysioRecording:
         if self.verbose:
             print(f"\tLoading raw data for session {self.session_id} and subject {self.subject_id}")
 
-        
+
+        signal_pd: Dict[str, Any] = {
+            "ors": {},
+            "os": {},
+            "crs": {},
+            "cs": {}
+        }
+
         for moment in ["ors", "os", "crs", "cs"]:
-            signal_pd: Dict[str, Any] = {}
-            signal_data = scipy.io.loadmat(self.physio_filepaths[moment])
-            signal_data = signal_data[list(signal_data.keys())[0]][:, 1]
+            # load from csv
+            signal_data = pd.read_csv(self.physio_filepaths[moment], header=None, names=["Signal"])
+
+            signal_data = signal_data[1:]
+            signal_data = np.asarray(signal_data, dtype=float)
             
-            sampling_rate = 75
-            signal_pd[moment]["sampling_rate"] = 75
+            sampling_rate = 300
+        
+            signal_pd[moment]["sampling_rate"] = 300
             signal_pd[moment]["nb_channels"] = 1
             signal_pd[moment]["nb_samples"] = len(signal_data)
             signal_pd[moment]["duration"] = len(signal_data) / sampling_rate if sampling_rate > 0 else 0
@@ -177,12 +187,11 @@ class PhysioRecording:
                 anomaly_ratio = max(anomaly_ratio_session, anomaly_ratio)
 
             if self.verbose:
-                print(f"\t\tExtracted {len(corrected_rr_session)} RR intervals from session BVP data.")
+                print(f"\t\tExtracted {len(corrected_rr)} RR intervals from session BVP data.")
 
-            self.bvp["processed"][moment]["RR_Intervals"] = corrected_rr_session
-
+            self.bvp["processed"][moment]["RR_Intervals"] = corrected_rr
         if self.verbose:
-            print(f"\t\tComputed RR intervals for session BVP data with {len(corrected_rr_session)} intervals.")
+            print(f"\t\tComputed RR intervals for session BVP data with {len(corrected_rr)} intervals.")
 
 
     def epoch_time_serie_with_fixed_duration(self, signal_type: str, key: str, duration: int, overlap: int = 0) -> None:
@@ -206,6 +215,11 @@ class PhysioRecording:
 
         if duration <= 0:
             raise ValueError("Duration must be a positive integer.")
+        
+        for moment in ["ors", "os", "crs", "cs"]:
+            self.__getattribute__(signal_type)["epochs"][moment] = {
+                key: {}
+            }
 
         for moment in ["ors", "os", "crs", "cs"]:
 
@@ -221,9 +235,12 @@ class PhysioRecording:
             epochs = segment_signal_epochs(signal_session, timestamps, epoch_len=duration, epoch_overlap=overlap)
 
             self.__getattribute__(signal_type)["epochs"][moment][key] = epochs
+
+            if self.verbose:
+                print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data and moment '{moment}'.")
         
         if self.verbose:
-            print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data.")
+            print(f"\t\tEpoching complete for {signal_type.upper()} '{key}' data with epochs of {duration}s and {overlap}s overlap.")
  
     def epoch_time_serie_with_fixed_number(self, signal_type: str, key: str, n_epochs: int) -> None:
         """
@@ -243,6 +260,11 @@ class PhysioRecording:
 
         if n_epochs <= 1:
             raise ValueError("Number of epochs must be greater than 1.")
+        
+        for moment in ["ors", "os", "crs", "cs"]:
+            self.__getattribute__(signal_type)["epochs"][moment] = {
+                key: {}
+            }
 
         for moment in ["ors", "os", "crs", "cs"]:
 
@@ -271,8 +293,11 @@ class PhysioRecording:
             # Store
             self.__getattribute__(signal_type)["epochs"][moment][key] = epochs
 
+            if self.verbose:
+                print(f"\t\tCreated {len(epochs)} epochs from {signal_type.upper()} '{key}' data and moment '{moment}'.")
+        
         if self.verbose:
-            print(f"\t\tCreated {len(epochs)} epochs of equal length for {signal_type.upper()} '{key}' data.")
+            print(f"\t\tEpoching complete for {signal_type.upper()} '{key}' data with epochs.")
 
 
     def epoch_time_serie_with_sliding_window(self, signal_type: str, key: str, duration: float, step: float) -> None:
@@ -294,9 +319,13 @@ class PhysioRecording:
 
         if duration <= 0 or step <= 0:
             raise ValueError("Duration and step must be positive.")
+        
+        for moment in ["ors", "os", "crs", "cs"]:
+            self.__getattribute__(signal_type)["epochs"][moment] = {
+                key: {}
+            }
 
         for moment in ["ors", "os", "crs", "cs"]:
-
  
             # Retrieve the signal and sampling rate
             serie_session = self.__getattribute__(signal_type)["processed"][moment][key]
@@ -316,8 +345,11 @@ class PhysioRecording:
             # Store
             self.__getattribute__(signal_type)["epochs"][moment][key] = epochs
 
+            if self.verbose:
+                print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data and moment '{moment}'.")
+        
         if self.verbose:
-            print(f"\t\tCreated {len(epochs)} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}'.")
+            print(f"\t\tEpoching complete for {signal_type.upper()} '{key}' data with epochs of {duration}s and {step}s steps.")
 
 
     def epoch_intervals_serie_with_fixed_duration(self, signal_type: str, key: str, duration: float, overlap: float = 0.0) -> None:
@@ -355,17 +387,25 @@ class PhysioRecording:
                         segments.append(segment)
                     start += duration_ms - overlap_ms
                 return segments
+        
+        for moment in ["ors", "os", "crs", "cs"]:
+            self.__getattribute__(signal_type)["epochs"][moment] = {
+                key: {}
+            }
 
         for moment in ["ors", "os", "crs", "cs"]:
 
             # Retrieve the signal and sampling rate
             interval_session = self.__getattribute__(signal_type)["processed"][moment][key]
-            sampling_rate = self.__getattribute__(signal_type)["processed"][moment]["sampling_rate"]
-            
-            self.__getattribute__(signal_type)["epochs"][moment][key] = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
 
+            epochs = segment_fixed(np.asarray(interval_session), duration_ms, overlap_ms)
+            self.__getattribute__(signal_type)["epochs"][moment][key] = epochs
+
+            if self.verbose:
+                print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data and moment '{moment}'.")
+        
         if self.verbose:
-            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs'][key])} epochs of {duration}s for {signal_type.upper()} '{key}' data.")
+            print(f"\t\tEpoching complete for {signal_type.upper()} '{key}' data with epochs of {duration}s and {overlap}s overlap.")
 
     def epoch_intervals_serie_with_fixed_number(self, signal_type: str, key: str, n_epochs: int) -> None:
         """
@@ -385,24 +425,34 @@ class PhysioRecording:
 
         if n_epochs <= 1:
             raise ValueError("Number of epochs must be greater than 1.")
+        
+        for moment in ["ors", "os", "crs", "cs"]:
+            self.__getattribute__(signal_type)["epochs"][moment] = {
+                key: {}
+            }
+
+        def segment_equal_chunks(intervals, n):
+            length = len(intervals)
+            chunk_size = length // n
+            segments = [intervals[i*chunk_size:(i+1)*chunk_size] for i in range(n - 1)]
+            segments.append(intervals[(n - 1)*chunk_size:])
+            return segments
 
         for moment in ["ors", "os", "crs", "cs"]:
 
             # Retrieve the signal and sampling rate
             interval_session = self.__getattribute__(signal_type)["processed"][moment][key]
-            sampling_rate = self.__getattribute__(signal_type)["processed"][moment]["sampling_rate"]
+            
+            epochs = segment_equal_chunks(np.asarray(interval_session), n_epochs)
+            self.__getattribute__(signal_type)["epochs"][moment][key] = epochs
 
-            def segment_equal_chunks(intervals, n):
-                length = len(intervals)
-                chunk_size = length // n
-                segments = [intervals[i*chunk_size:(i+1)*chunk_size] for i in range(n - 1)]
-                segments.append(intervals[(n - 1)*chunk_size:])
-                return segments
+            print("Hey coucou")
 
-            self.__getattribute__(signal_type)["epochs"][moment][key] = segment_equal_chunks(np.asarray(interval_session), n_epochs)
+            if self.verbose:
+                print(f"\t\tCreated {len(epochs)} epochs from {signal_type.upper()} '{key}' data and moment '{moment}'.")
 
         if self.verbose:
-            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs'][key])} epochs of equal length for {signal_type.upper()} '{key}' data.")
+            print(f"\t\tEpoching complete for {signal_type.upper()} '{key}' data with epochs.")
 
     def epoch_intervals_serie_with_sliding_window(self, signal_type: str, key: str, duration: float, step: float) -> None:
         """
@@ -439,18 +489,25 @@ class PhysioRecording:
                     segments.append(segment)
                 start += step_ms
             return segments
-
+        
+        
+        for moment in ["ors", "os", "crs", "cs"]:
+            self.__getattribute__(signal_type)["epochs"][moment] = {
+                key: {}
+            }
 
         for moment in ["ors", "os", "crs", "cs"]:
             # Retrieve the signal and sampling rate
             interval_session = self.__getattribute__(signal_type)["processed"][moment][key]
-            sampling_rate = self.__getattribute__(signal_type)["processed"][moment]["sampling_rate"]
-            
 
-            self.__getattribute__(signal_type)["epochs"][moment][key] = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
+            epochs = segment_sliding(np.asarray(interval_session), duration_ms, step_ms)
+            self.__getattribute__(signal_type)["epochs"][moment][key] = epochs
+
+            if self.verbose:
+                print(f"\t\tCreated {len(epochs)} epochs of {duration}s from {signal_type.upper()} '{key}' data and moment '{moment}'.")    
         
         if self.verbose:
-            print(f"\t\tCreated {len(getattr(self, signal_type)['epochs'][key])} sliding epochs of {duration}s every {step}s for {signal_type.upper()} '{key}' data.")
+            print(f"\t\tEpoching complete for {signal_type.upper()} '{key}' data with epochs of {duration}s and {step}s steps.")
 
     def epoch_metric(self, signal_type: str, key: str, method: str, is_interval: bool = False, **kwargs: Dict[str, Any]) -> None:
         """
@@ -472,7 +529,7 @@ class PhysioRecording:
 
         if not self.data_processed:
             raise ValueError("Data has not been processed. Please process the data before epoching.")
-
+        
         if method == "fixed_duration":
             if "duration" not in kwargs:
                 duration = 60.0  # Default duration in seconds
@@ -532,8 +589,14 @@ class PhysioRecording:
 
         self.bvp["epochs"] = {"method": method}
 
-        # Epoch EDA data
-        if "RR_Intervals" in self.bvp["processed"].keys():
+        process = True
+        for moment in self.bvp["processed"].keys():
+            if "RR_Intervals" not in self.bvp["processed"][moment].keys():
+                process = False
+                if self.verbose:
+                    print(f"\t\tSkipping epoching for {moment} as it does not contain RR intervals.")
+                continue
+        if process:
             self.epoch_metric("bvp", "RR_Intervals", method, is_interval=True, **kwargs)
         # Epoch Temperature data
 
@@ -626,9 +689,14 @@ def correct_rr_intervals(rr_intervals: np.ndarray,
             else:
                 reference = np.median(rr_intervals)
             
-            num_splits = max(2, int(np.round(current_rr / reference)))
-            split_value = current_rr / num_splits
-            corrected_rr.extend([split_value] * num_splits)
+            try:
+                num_splits = max(2, int(np.round(current_rr / reference)))
+                split_value = current_rr / num_splits
+                corrected_rr.extend([split_value] * num_splits)
+            except Exception as e:
+                if verbose:
+                    print(f"\t\tError splitting RR interval {current_rr} ms: {e}")
+                    print(f"\t\t{current_rr}.")
 
         else:
             corrected_rr.append(current_rr)

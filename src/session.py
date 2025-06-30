@@ -127,32 +127,34 @@ class Session:
         
         # Create a figure with two columns and three rows
         fig = plt.figure(figsize=(15, 10))
-        gs = gridspec.GridSpec(3, 2, figure=fig)
+        gs = gridspec.GridSpec(4, 2, figure=fig)
         gs.update(wspace=0.025, hspace=0.05)  # set the spacing between subplots
 
         for i, recording in enumerate(self.physio_recordings):
-            if i >= 3:
+            if i >= 2:
                 break
-            ax1 = fig.add_subplot(gs[i, 0])
-            ax2 = fig.add_subplot(gs[i, 1])
-            # Plot the raw signal
-            session_data = recording.__getattribute__(signal_type)["processed"][moment][key]
-            if isinstance(session_data, dict):
-                session_data = list(session_data.values())
-            if session_data is not None:
-                ax2.plot(session_data, label=f"Session - Subject {recording.subject_id}", color='orange')
-                ax2.set_title(f"{signal_type.upper()} - Session - Subject {recording.subject_id}")
-                ax2.set_xlabel("Time")
-                ax2.set_ylabel(key)
-                ax2.legend()
-                if min_y is not None and max_y is not None:
-                    ax2.set_ylim(min_y, max_y)
-                elif min_y is not None:
-                    ax2.set_ylim(bottom=min_y)
-                elif max_y is not None:
-                    ax2.set_ylim(top=max_y)
-            else:
-                ax2.set_title(f"{signal_type.upper()} - Session - Subject {recording.subject_id} (No Data)")
+
+            for j, moment in enumerate(["ors", "os", "crs", "cs"]):
+                ax = fig.add_subplot(gs[j, i])
+
+                # Plot the raw signal
+                session_data = recording.__getattribute__(signal_type)["processed"][moment][key]
+                if isinstance(session_data, dict):
+                    session_data = list(session_data.values())
+                if session_data is not None:
+                    ax.plot(session_data, label=f"Session - Subject {recording.subject_id}", color='orange')
+                    ax.set_title(f"{signal_type.upper()} - Session - Subject {recording.subject_id} - Moment {moment}")
+                    ax.set_xlabel("Time")
+                    ax.set_ylabel(key)
+                    ax.legend()
+                    if min_y is not None and max_y is not None:
+                        ax.set_ylim(min_y, max_y)
+                    elif min_y is not None:
+                        ax.set_ylim(bottom=min_y)
+                    elif max_y is not None:
+                        ax.set_ylim(top=max_y)
+                else:
+                    ax.set_title(f"{signal_type.upper()} - Session - Subject {recording.subject_id} (No Data)")
         
         plt.suptitle(f"Time Series for {signal_type.upper()} - Key: {key} - Session {self.session_id}, Family {self.family_id}, Seance {self.seance_id}")
         plt.show()
@@ -179,33 +181,32 @@ class Session:
             print(f"Plotting Poincare maps for session {self.session_id}, family {self.family_id}, seance {self.seance_id}...")
 
         fig = plt.figure(figsize=(15, 10))
-        gs = gridspec.GridSpec(3, 1, figure=fig)
+        gs = gridspec.GridSpec(4, 2, figure=fig)
         gs.update(wspace=0.025, hspace=0.05)  # set the spacing between subplots
 
         for i, recording in enumerate(self.physio_recordings):
-            if i >= 3:
+            if i >= 2:
                 break
 
-            ax1 = fig.add_subplot(gs[i, 0])
+            for j, moment in enumerate(["ors", "os", "crs", "cs"]):
+                ax = fig.add_subplot(gs[j, i])
 
-            rr_session = recording.bvp["processed"][moment]["RR_Intervals"]
-            if rr_session is not None and len(rr_session) >= 3:
-                rr_session = np.asarray(rr_session, dtype=float).ravel()
-                rr_t = rr_session[1:]
-                rr_tm = rr_session[:-1]
-                ax1.scatter(rr_t, rr_tm, label='Session', color='orange', alpha=0.5)
-                ax1.set_title(f"Session - Subject {recording.subject_id}")
-                ax1.set_ylim(bottom=0, top=2500)
-                ax1.set_xlim(left=0, right=2500)
-                ax1.set_xlabel("RR Interval (t)")
-                ax1.set_ylabel("RR Interval (t-1)")
-                ax1.axhline(0, color='black', lw=0.5, ls='--')
-                ax1.axvline(0, color='black', lw=0.5, ls='--')
-                ax1.set_xlim(left=0)
-                ax1.set_ylim(bottom=0)
-                ax1.legend()
-            else:
-                ax1.set_title(f"Session - Subject {recording.subject_id} (No Data)")
+                rr_session = recording.bvp["processed"][moment]["RR_Intervals"]
+                if rr_session is not None and len(rr_session) >= 3:
+                    rr_session = np.asarray(rr_session, dtype=float).ravel()
+                    rr_t = rr_session[1:]
+                    rr_tm = rr_session[:-1]
+                    ax.scatter(rr_t, rr_tm, label='Session', color='orange', alpha=0.5)
+                    ax.set_title(f"Session - Subject {recording.subject_id} - Moment {moment}")
+                    ax.set_ylim(bottom=0, top=2500)
+                    ax.set_xlim(left=0, right=2500)
+                    ax.set_xlabel("RR Interval (t)")
+                    ax.set_ylabel("RR Interval (t-1)")
+                    ax.axhline(0, color='black', lw=0.5, ls='--')
+                    ax.axvline(0, color='black', lw=0.5, ls='--')
+                    ax.legend()
+                else:
+                    ax1.set_title(f"Session - Subject {recording.subject_id} (No Data)")
         
         plt.suptitle(f"Poincare Maps - Session {self.session_id}, Family {self.family_id}, Seance {self.seance_id}")
         plt.show()
