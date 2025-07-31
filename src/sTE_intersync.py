@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 class NSTE_Analysis:
 
     def __init__(self, verbose=True):
+       
        if not isinstance(verbose, bool):
             raise ValueError("verbose must be a boolean value")
        
@@ -20,14 +21,15 @@ class NSTE_Analysis:
        self.x_signal: np.ndarray = None
        self.y_signal: np.ndarray = None
        self.timestamps: np.ndarray = None
+
+        # Parameters
+       self.fs = None
+       self.win_size_sec = None
+       self.win_step_sec = None
+       self.dim = None
+       self.tau = None
+       self.num_iter = None
         
-        # NSTE parameters
-       self.fs: int = None
-       self.win_size_sec: int = None
-       self.win_step_sec: int = None
-       self.dim: int = None
-       self.tau: int = None
-       self.num_iter: int = None
         
         # Computed results
        self.results: Dict[str, Any] = {}
@@ -35,6 +37,15 @@ class NSTE_Analysis:
 
        if self.verbose:
         print("NSTE_Analysis initialized.")
+
+
+    def set_signals(self, x_signal, y_signal, timestamps=None):
+     """
+     Set the signals to analyze
+     """
+     self.x_signal = np.asarray(x_signal)
+     self.y_signal = np.asarray(y_signal)
+     self.timestamps = timestamps
 
     def set_parameters(self, fs: int, win_size_sec: int, win_step_sec: int,
                        dim: int, tau: int, num_iter: int):
@@ -68,7 +79,7 @@ class NSTE_Analysis:
         if n_points < lag * (dim - 1) + 1:
 
             if self.verbose:
-             print(f"DEBUG: n_points: {n_points}, n_channels: {n_channels}, min_required: {min_required}")
+             print(f"DEBUG: n_points: {n_points}, n_channels: {n_channels}")
 
             if self.verbose:
                 print(f"Warning (_delay_reconstruction): Not enough data points ({n_points}) for reconstruction with lag {lag} and dim {dim}. Expected at least {lag * (dim - 1) + 1}. Returning empty array.")
@@ -214,52 +225,48 @@ class NSTE_Analysis:
         sx_curr = sx[0 : min_len_joint]
         sy_curr = sy[0 : min_len_joint]
 
-        print(f"  x_win length: {len(x_sample_window)}")
-        print(f"  y_win length: {len(y_sample_window)}")
-        print(f"  (Required min length for embedding with dim={test_dim}, tau={test_tau}: {min_len_needed})")
+        print(f"  x_win length: {len(x_win)}")
+        print(f"  y_win length: {len(y_win)}")
+        print(f"  (Required min length for embedding with dim={self.dim}, tau={self.tau}: {min_len_emb})")
 
         # Probability calculation 
-
+        sx_next = sx[1 : min_len_joint + 1]
+        sx_curr = sx[0 : min_len_joint]
+        sy_next = sy[1 : min_len_joint + 1]
+        sy_curr = sy[0 : min_len_joint]
+        
+        # Y → X
         p_xnext_x_y = self._estimate_probabilities(sx_next, sx_curr, sy_curr)
-        p_xnext_x = self._estimate_probabilities(sx_next, sx_curr)
-        p_x_y = self._estimate_probabilities(sx_curr, sy_curr)
-        p_x = self._estimate_probabilities(sx_curr)
-
-        py_next = sy[1 : min_len_joint + 1]
-        py_curr = sy[0 : min_len_joint]
-        px_curr = sx[0 : min_len_joint]
-
-        p_ynext_y_x = self._estimate_probabilities(py_next, py_curr, px_curr)
-        p_ynext_y = self._estimate_probabilities(py_next, py_curr)
-        p_y_x = self._estimate_probabilities(py_curr, px_curr)
-        p_y = self._estimate_probabilities(py_curr)
+        p_xnext_x   = self._estimate_probabilities(sx_next, sx_curr)
+        p_x_y       = self._estimate_probabilities(sx_curr, sy_curr)
+        p_x         = self._estimate_probabilities(sx_curr)
         
+        # X → Y
+        p_ynext_y_x = self._estimate_probabilities(sy_next, sy_curr, sx_curr)
+        p_ynext_y   = self._estimate_probabilities(sy_next, sy_curr)
+        p_y_x       = self._estimate_probabilities(sy_curr, sx_curr)
+        p_y         = self._estimate_probabilities(sy_curr)
+        
+        # Entropies
         h_xnext_x_y = self._shannon_entropy(p_xnext_x_y)
-        h_xnext_x = self._shannon_entropy(p_xnext_x)
-        h_x_y = self._shannon_entropy(p_x_y)
-        h_x = self._shannon_entropy(p_x)
-
+        h_xnext_x   = self._shannon_entropy(p_xnext_x)
+        h_x_y       = self._shannon_entropy(p_x_y)
+        h_x         = self._shannon_entropy(p_x)
+        
         h_ynext_y_x = self._shannon_entropy(p_ynext_y_x)
-        h_ynext_y = self._shannon_entropy(p_ynext_y)
-        h_y_x = self._shannon_entropy(p_y_x)
-        h_y = self._shannon_entropy(p_y)
-
-        ste_yx = h_xnext_x + h_x_y - h_xnext_x_y - h_x
-        ste_xy = h_ynext_y + h_y_x - h_ynext_y_x - h_y
-
-        p_xnext = self._estimate_probabilities(sx_next)
-        h_xnext = self._shannon_entropy(p_xnext)
+        h_ynext_y   = self._shannon_entropy(p_ynext_y)
+        h_y_x       = self._shannon_entropy(p_y_x)
+        h_y         = self._shannon_entropy(p_y)
         
-        p_ynext = self._estimate_probabilities(py_next)
-        h_ynext = self._shannon_entropy(p_ynext)
-
-        nste_yx = ste_yx / h_xnext if h_xnext > 0 else 0
-        nste_xy = ste_xy / h_ynext if h_ynext > 0 else 0
+        # STE & NSTE
+        ste_yx = max(0, h_xnext_x + h_x_y - h_xnext_x_y - h_x)
+        ste_xy = max(0, h_ynext_y + h_y_x - h_ynext_y_x - h_y)
         
-        ste_yx = max(0, ste_yx)
-        ste_xy = max(0, ste_xy)
-        nste_yx = max(0, nste_yx)
-        nste_xy = max(0, nste_xy)
+        h_xnext = self._shannon_entropy(self._estimate_probabilities(sx_next))
+        h_ynext = self._shannon_entropy(self._estimate_probabilities(sy_next))
+        
+        nste_yx = max(0, ste_yx / h_xnext if h_xnext > 0 else 0)
+        nste_xy = max(0, ste_xy / h_ynext if h_ynext > 0 else 0)
 
         print("\n--- Results from _calculate_nste_single_window ---")
         print(f"STE Y->X: {ste_yx:.4f}")
@@ -269,6 +276,56 @@ class NSTE_Analysis:
         
     
         return ste_yx, ste_xy, nste_yx,nste_xy
+    
+    def compute_nste(self):
+        """
+        Computes Normalized Symbolic Transfer Entropy (NSTE) over multiple 
+        sliding windows of the input signals. Results are stored in 
+        self.results['nste'] and corresponding timestamps in self.results['timestamps'].
+        """
+        # Check that all required parameters are set
+        required_params = [
+        self.x_signal, self.y_signal, self.fs,
+        self.win_size_sec, self.win_step_sec,
+        self.dim, self.tau, self.num_iter
+        ]
+        if any(param is None for param in required_params):
+         raise ValueError("Ensure all signals and parameters are set before computing NSTE.")
+
+        win_size_samples = int(self.win_size_sec * self.fs)
+        win_step_samples = int(self.win_step_sec * self.fs)
+        n_samples = min(len(self.x_signal), len(self.y_signal))
+
+        n_windows = (n_samples - win_size_samples) // win_step_samples + 1
+ 
+        if self.verbose:
+            print(f"Computing NSTE over {n_windows} windows...")
+
+        nste_values = []
+        timestamps = []
+
+        for i in range(n_windows):
+            start = i * win_step_samples
+            end = start + win_size_samples
+
+            x_win = self.x_signal[start:end]
+            y_win = self.y_signal[start:end]
+
+            try:
+                nste_val = self._calculate_nste_single_window(x_win, y_win)
+            except Exception as e:
+                nste_val = np.nan
+                if self.verbose:
+                    print(f"Window {i}: Error - {e}")
+
+            nste_values.append(nste_val)
+            timestamps.append(start / self.fs)
+
+            if self.verbose:
+               print(f"Window {i + 1}/{n_windows}: NSTE = {nste_val}")
+
+        self.results['nste'] = nste_values
+        self.results['timestamps'] = timestamps
 
 
     def run(self):
@@ -284,23 +341,14 @@ class NSTE_Analysis:
 
         self.results = {} # Clear previous results on a new run
 
-        # Step 1: Validate parameters and prepare data windows
-        try:
-            self._validate_and_prepare_windows()
-            if not self._analysis_successful:
-                # If window preparation failed (e.g., signal too short, no windows formed),
-                # _analysis_successful will be False and results already set with an error.
-                if self.verbose:
-                    print("NSTE run terminated early due to windowing issues.")
-                return 
-        except ValueError as e:
-            raise ValueError(f"Parameter or data validation error: {e}") from e
+        
+        
 
         # Step 2: Compute observed and shuffled NSTE values, and p-values
-        self._compute_nste_values()
+        self.compute_nste(self)
         
-        # Step 3: Compile all results into the final dictionary
-        self._compile_final_results()
+        
+
 
     def get_results(self) -> Dict[str, Any]:
         """
@@ -313,10 +361,46 @@ class NSTE_Analysis:
         if not self.results:
             raise ValueError("NSTE results have not been computed yet. Call run_analysis() first.")
         return self.results.copy()
+    
+    import matplotlib.pyplot as plt
+import numpy as np
+from datetime import datetime
+
+def unix_to_minutes(unix_timestamps: np.ndarray) -> np.ndarray:
+    """Convert unix timestamps to minutes from start."""
+    times = [datetime.fromtimestamp(ts) for ts in unix_timestamps]
+    start = times[0]
+    return np.array([(t - start).total_seconds() / 60 for t in times])
+
+def plot_time_series(nste_time, nste_yx, nste_xy, asym_ave, figsize=(12, 6)):
+    """Plot NSTE and Asymmetry metrics."""
+    t = unix_to_minutes(nste_time)
+    plt.style.use('seaborn-v0_8-whitegrid')
+    colors = ['#2E86AB', '#A23B72', '#F18F01']
+
+    fig, axes = plt.subplots(1, 2, figsize=(figsize[0]*2, figsize[1]))
+
+    # Plot NSTE
+    axes[0].plot(t, nste_yx, label='NSTE Y→X', color=colors[0])
+    axes[0].plot(t, nste_xy, label='NSTE X→Y', color=colors[1])
+    axes[0].set(title='NSTE', xlabel='Time (min)', ylabel='Value')
+    axes[0].legend()
+
+    # Plot Asymmetry (sampled)
+    axes[1].plot(t[::5], asym_ave[::5], label='Asymmetry', color=colors[2], marker='o', linewidth=2)
+    axes[1].axhline(0, linestyle='--', color='gray', linewidth=1)
+    axes[1].set(title='Asymmetry (X-Y)', xlabel='Time (min)', ylabel='Value')
+
+    for ax in axes:
+        ax.grid(True)
+        ax.set_facecolor('#fafafa')
+
+    plt.tight_layout()
+    plt.show()
+    return fig
 
 
 
-  
 
 
 
@@ -324,154 +408,36 @@ class NSTE_Analysis:
 
 # --- ADAPTED EXAMPLE USAGE (using randomly generated numbers with simplified NSTE_Analysis) ---
 if __name__ == "__main__":
-    # 1. Generate random time series data
+    # Generate test data
     num_samples = 1000
-    t = np.linspace(1, 100, num_samples) 
-    fs = int(num_samples / (t[-1] - t[0])) 
-
     X_data = np.random.randn(num_samples)
     Y_data = np.random.randn(num_samples)
     
-    print(f"Generated random data: X (len={len(X_data)}), Y (len={len(Y_data)}), fs={fs}Hz")
-
-    lags = [1, 2, 3, 4, 5]
-
-    max_nste_yx = -np.inf
-    max_nste_xy = -np.inf
-    best_tau_yx = None
-    best_tau_xy = None
-    
-    fixed_dim = 3
-    num_shuffles = 100
-
-    full_signal_duration = t[-1] - t[0] + (1/fs) 
-    win_size_for_full_signal = int(np.ceil(full_signal_duration)) 
-    
-    for current_tau in lags:
-        print(f"\n--- Analyzing for tau = {current_tau} ---")
+    # Test different tau values
+    for tau in [1, 2, 3]:
+        print(f"\n--- Testing tau = {tau} ---")
         
-        # MODIFIED: Create NSTE_Analysis instance, passing data directly
-        # verbose=True here to see the new debug prints within the class
-        engine = NSTE_Analysis(
-            x_signal=X_data, 
-            y_signal=Y_data, 
-            timestamps=t, 
-            window_size=1, # Dummy value, will be set by set_parameters
-            lag=1,         # Dummy value, will be set by set_parameters
-            verbose=True # Set to True for more detailed internal debugging messages
-        ) 
+        # Create analyzer
+        analyzer = NSTE_Analysis(verbose=True)
         
-        # 4. Set parameters for a single large window
-        engine.set_parameters(
-            fs=fs,
-            win_size_sec=win_size_for_full_signal, 
-            win_step_sec=win_size_for_full_signal, 
-            dim=fixed_dim,
-            tau=current_tau,
-            num_iter=num_shuffles
-        )
+        # Set signals and parameters
+        analyzer.set_signals(X_data, Y_data)  # You'd need to add this method
+        analyzer.set_parameters(fs=10, win_size_sec=10,win_step_sec=2, dim=3, tau=tau, num_iter=1)
         
-        # 5. Run the NSTE Analysis (now called 'run')
-        try:
-            engine.run() # Call the new 'run' method
-            
-            results = engine.get_results()
-            
-            if 'error' in results:
-                print(f"  Skipping NSTE for tau {current_tau} due to error: {results['error']}")
-                continue 
+        # Test single window calculation
+        ste_yx, ste_xy, nste_yx, nste_xy = analyzer._calculate_nste_single_window(X_data, Y_data)
+        
+        print(f"STE Y->X: {ste_yx:.4f}")
+        print(f"NSTE Y->X: {nste_yx:.4f}")
+        print(f"STE X->Y: {ste_xy:.4f}")
+        print(f"NSTE X->Y: {nste_xy:.4f}")
 
-            # Accessing results
-            ste_yx_val = results['ste_yx'][0]
-            ste_xy_val = results['ste_xy'][0]
-            nste_yx_val = results['nste_yx'][0]
-            nste_xy_val = results['nste_xy'][0]
-            
-            pval_yx_val = results['pval_YX'][0]
-            pval_xy_val = results['pval_XY'][0]
-            
-            print(f"  STE Y->X for tau {current_tau}: {ste_yx_val:.4f}")
-            print(f"  NSTE Y->X for tau {current_tau}: {nste_yx_val:.4f} (p={pval_yx_val:.4f})")
-            print(f"  STE X->Y for tau {current_tau}: {ste_xy_val:.4f}")
-            print(f"  NSTE X->Y for tau {current_xy_val:.4f} (p={pval_xy_val:.4f})")
+    n = 1000
+    t0 = 1640995200
+    nste_time = np.linspace(t0, t0 + 3600, num_samples)
+    x = np.linspace(0, 4*np.pi, num_samples)
+    nste_yx = 0.3 + 0.2*np.sin(x) + 0.1*np.random.randn(num_samples)
+    nste_xy = 0.25 + 0.15*np.cos(x*1.2) + 0.1*np.random.randn(num_samples)
+    asym_ave = nste_yx - nste_xy + 0.05*np.random.randn(num_samples)
 
-            if nste_yx_val > max_nste_yx:
-                max_nste_yx = nste_yx_val
-                best_tau_yx = current_tau
-            if nste_xy_val > max_nste_xy:
-                max_nste_xy = nste_xy_val
-                best_tau_xy = current_tau
-
-        except ValueError as e:
-            print(f"  Analysis Error (ValueError) for tau {current_tau}: {e}")
-        except Exception as e:
-            print(f"  An unexpected error occurred for tau {current_tau}: {type(e).__name__}: {e}")
-
-    print("\n--- Summary of Maximum NSTE across Lags ---")
-    print(f"Maximum NSTE Y->X found: {max_nste_yx:.4f} (at tau={best_tau_yx})")
-    print(f"Maximum NSTE X->Y found: {max_nste_xy:.4f} (at tau={best_tau_xy})")
-
-
-
-
-
-
-    # Initialize the NSTE_Analysis object
-nste_analyzer = NSTE_Analysis(verbose=True)
-
-# Manually mock the internal structure expected after set_session
-nste_analyzer.features = {
-    "subjects": {
-        "A": {
-            "EDA_Signal": {
-                "rs": np.random.rand(1000),  # simulated signal
-                "session": np.random.rand(1000)
-            },
-            "EDA_Timestamps": {
-                "rs": np.linspace(0, 100, 1000),
-                "session": np.linspace(0, 100, 1000)
-            }
-        },
-        "B": {
-            "EDA_Signal": {
-                "rs": np.random.rand(1000),
-                "session": np.random.rand(1000)
-            },
-            "EDA_Timestamps": {
-                "rs": np.linspace(0, 100, 1000),
-                "session": np.linspace(0, 100, 1000)
-            }
-        }
-    },
-    "dyads": {
-        "A_B": {
-            "NSTE_XY": {"rs": {}, "session": {}},
-            "NSTE_YX": {"rs": {}, "session": {}},
-            "STE_XY": {"rs": {}, "session": {}},
-            "STE_YX": {"rs": {}, "session": {}}
-        }
-    }
-}
-
-# Set NSTE parameters (you can modify these for experiments)
-nste_analyzer.set_parameters(
-    fs=10,              # sampling frequency
-    win_size_sec=10,    # window size in seconds
-    win_step_sec=5,     # window step size
-    dim=3,              # embedding dimension
-    tau=2,              # time delay
-    num_iter=1          # number of iterations (for shuffling, if implemented)
-)
-
-# Manually invoke compute_dyadic_nste()
-nste_analyzer.compute_dyadic_nste()
-
-# Retrieve and print results
-results = nste_analyzer.get_results()
-dyad_results = nste_analyzer.get_dyad_results("A_B")
-
-print("\n--- NSTE Results for A_B ---")
-print("NSTE_XY (rs):", dyad_results["NSTE_XY"]["rs"])
-print("NSTE_YX (rs):", dyad_results["NSTE_YX"]["rs"])
-print("STE_XY (rs):", dyad_results["STE_XY"]["rs"])
-print("STE_YX (rs):", dyad_results["STE_YX"]["rs"])
+    plot_time_series(nste_time, nste_yx, nste_xy, asym_ave)
