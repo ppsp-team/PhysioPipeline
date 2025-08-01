@@ -1,6 +1,6 @@
 import sys
 sys.path.append('../src/')
-from session import Session
+
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Dict, Any, List, Tuple, Optional
@@ -433,25 +433,5 @@ class NSTE_Session_Analysis:
 
 
 
-# Assuming MockPhysioRecording and Session are already defined as earlier...
-class MockPhysioRecording:
-    def __init__(self, subject_id, eda_data):
-        self.subject_id = subject_id
-        self.eda = eda_data
 
-class session:
-    def __init__(self, session_id: str, num_subjects: int = 2):
-        self.session_id = session_id
-        self.physio_recordings = []
 
-        for i in range(num_subjects):
-            subject_id = f"subject_{i+1}"
-            signal = np.random.rand(1000)
-            timestamps = np.arange(1000)
-            eda_data = {
-                "epochs": {
-                    "rs": {"signal": signal, "timestamps": timestamps},
-                    "session": {"signal": signal, "timestamps": timestamps}
-                }
-            }
-            self.physio_recordings.append(MockPhysioRecording(subject_id, eda_data))
