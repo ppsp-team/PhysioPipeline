@@ -8,10 +8,10 @@ from collections import Counter
 import pandas as pd
 
 
+
 class NSTE_Session_Analysis:
     """
-    Efficient NSTE (Normalized Symbolic Transfer Entropy) analysis class
-    following the streamlined pattern of NSTE_Analysis.
+    Efficient NSTE (Normalized Symbolic Transfer Entropy) analysis class.
     """
     
     def __init__(self, verbose: bool = False):
@@ -95,8 +95,6 @@ class NSTE_Session_Analysis:
         self.num_iter = num_iter
         
         print(f"Parameters set: fs={fs}, dim={dim}, tau={tau}") if self.verbose else None
-
-    # Remove the set_signals method since we extract directly from session
     
 
     def _delay_reconstruction(self, data: np.ndarray, lag: int, dim: int) -> np.ndarray:
@@ -429,26 +427,7 @@ class NSTE_Session_Analysis:
         plt.tight_layout()
         plt.show()
 
-    fig, axes = plt.subplots(2, 1, figsize=(12, 8))
-
-    # Plot NSTE Asymmetry
-    axes[0].plot(time, asymmetry, label='NSTE Asymmetry', color='purple', marker='o', linewidth=2)
-    axes[0].axhline(0, linestyle='--', color='gray', linewidth=1)
-    axes[0].set(title='NSTE Asymmetry Over Time', xlabel='Time (s)', ylabel='Asymmetry')
-    axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
-    axes[0].set_facecolor('#fafafa')
-
-    # Plot NSTE Dynamics (Y→X and X→Y)
-    axes[1].plot(time, nste_yx_list, label='NSTE Y→X', color='green', marker='o', linewidth=2)
-    axes[1].plot(time, nste_xy_list, label='NSTE X→Y', color='red', marker='o', linewidth=2)
-    axes[1].set(title='NSTE Dynamics Over Time', xlabel='Time (s)', ylabel='NSTE Value')
-    axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
-    axes[1].set_facecolor('#fafafa')
-
-    plt.tight_layout()
-    plt.show()
+        fig, axes = plt.subplots(2, 1, figsize=(12, 8))
 
 
 
@@ -460,7 +439,7 @@ class MockPhysioRecording:
         self.subject_id = subject_id
         self.eda = eda_data
 
-class Session:
+class session:
     def __init__(self, session_id: str, num_subjects: int = 2):
         self.session_id = session_id
         self.physio_recordings = []
